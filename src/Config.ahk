@@ -19,6 +19,12 @@ class AppConfigStore {
             "hotkey",
             AppConstants.DefaultHotkey
         )
+        config["themeMode"] := IniRead(
+            AppConstants.ConfigFilePath,
+            "appearance",
+            "theme_mode",
+            AppConstants.DefaultThemeMode
+        )
 
         return config
     }
@@ -28,6 +34,7 @@ class AppConfigStore {
 
         IniWrite(config["targetFilePath"], AppConstants.ConfigFilePath, "capture", "target_file_path")
         IniWrite(config["hotkey"], AppConstants.ConfigFilePath, "capture", "hotkey")
+        IniWrite(config["themeMode"], AppConstants.ConfigFilePath, "appearance", "theme_mode")
     }
 
     EnsureConfigDirectory() {

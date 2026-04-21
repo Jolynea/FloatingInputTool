@@ -6,6 +6,7 @@
 #Include InputWindow.ahk
 #Include NoteFormatter.ahk
 #Include SettingsWindow.ahk
+#Include ThemeManager.ahk
 #Include TrayController.ahk
 
 class FloatingInputToolApp {
@@ -14,12 +15,21 @@ class FloatingInputToolApp {
         this.config := this.configStore.Load()
         this.noteFormatter := NoteFormatter()
         this.fileWriter := FileWriter()
-        this.inputWindow := InputWindowController(this.HandleSubmit.Bind(this))
-        this.settingsWindow := SettingsWindowController(this.config, this.HandleSettingsSave.Bind(this))
+        this.inputWindow := InputWindowController(
+            this.GetCurrentTheme.Bind(this),
+            this.HandleSubmit.Bind(this)
+        )
+        this.settingsWindow := SettingsWindowController(
+            this.GetCurrentTheme.Bind(this),
+            this.config,
+            this.HandleSettingsSave.Bind(this)
+        )
         this.trayController := TrayController(
             this.config["hotkey"],
+            this.config["themeMode"],
             this.ToggleInputWindow.Bind(this),
-            this.ShowSettingsWindow.Bind(this)
+            this.ShowSettingsWindow.Bind(this),
+            this.HandleThemeModeChange.Bind(this)
         )
     }
 
@@ -47,7 +57,9 @@ class FloatingInputToolApp {
 
     HandleSettingsSave(nextConfig) {
         previousHotkey := this.config["hotkey"]
+        previousThemeMode := this.config["themeMode"]
         hotkeyChanged := previousHotkey != nextConfig["hotkey"]
+        themeChanged := previousThemeMode != nextConfig["themeMode"]
 
         if hotkeyChanged {
             this.trayController.UpdateHotkey(nextConfig["hotkey"])
@@ -64,7 +76,36 @@ class FloatingInputToolApp {
         }
 
         this.config := nextConfig
+        if themeChanged {
+            this.trayController.UpdateThemeMode(this.config["themeMode"])
+            this.ApplyThemeToWindows()
+        }
         this.settingsWindow.UpdateConfig(this.config)
         TrayTip(AppConstants.AppName, "Settings saved.", 1)
+    }
+
+    HandleThemeModeChange(themeMode) {
+        nextConfig := Map(
+            "targetFilePath", this.config["targetFilePath"],
+            "hotkey", this.config["hotkey"],
+            "themeMode", themeMode
+        )
+
+        this.configStore.Save(nextConfig)
+        this.config := nextConfig
+        this.settingsWindow.UpdateConfig(this.config)
+        this.trayController.UpdateThemeMode(themeMode)
+        this.ApplyThemeToWindows()
+        TrayTip(AppConstants.AppName, "Theme updated.", 1)
+    }
+
+    GetCurrentTheme() {
+        return ThemeManager.GetTheme(this.config["themeMode"])
+    }
+
+    ApplyThemeToWindows() {
+        theme := this.GetCurrentTheme()
+        this.inputWindow.ApplyTheme(theme)
+        this.settingsWindow.ApplyTheme(theme)
     }
 }

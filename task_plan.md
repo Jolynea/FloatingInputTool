@@ -6,7 +6,7 @@ Build the first working version of FloatingInputTool as a lightweight AutoHotkey
 
 ## Current Phase
 
-Phase 7 - Manual verification of the end-to-end capture workflow
+Phase 10 - Replatform UI to Tauri for high-fidelity visuals
 
 ## Phases
 
@@ -20,6 +20,8 @@ Phase 7 - Manual verification of the end-to-end capture workflow
 | 6 | complete | Implement markdown formatting and prepend file writing |
 | 7 | in_progress | Manual verification of the end-to-end capture workflow |
 | 8 | pending | Prepare packaging and usage notes for compiled distribution |
+| 9 | in_progress | Add theme switching, tray theme controls, and visual packaging refinements |
+| 10 | in_progress | Preserve the AutoHotkey prototype and move the main UI implementation to Tauri |
 
 ## Decisions
 
@@ -32,6 +34,10 @@ Phase 7 - Manual verification of the end-to-end capture workflow
 - If the destination file or parent directories do not exist, the tool creates them.
 - Side docking is deferred; first version hides back to the background instead.
 - Initial config storage will use `%AppData%\FloatingInputTool\config.ini` to avoid write-permission issues for compiled builds.
+- Theme mode should be configurable from both the Settings window and the tray menu, with options for dark, white, and follow-system.
+- The AutoHotkey version is now a behavior prototype, not the final UI implementation path.
+- Final visual fidelity will be implemented in Tauri/WebView so the app can match the approved mockup.
+- The future side-hide behavior should be implemented directly in the Tauri window layer.
 
 ## Risks
 
@@ -40,6 +46,7 @@ Phase 7 - Manual verification of the end-to-end capture workflow
 - UTF-8 write behavior must be handled carefully so markdown content stays clean.
 - Multi-line callout formatting must preserve blank lines without breaking structure.
 - The current environment does not have AutoHotkey installed, so runtime validation is temporarily blocked.
+- Tauri migration adds setup and packaging complexity compared with the AHK prototype.
 
 ## Errors Encountered
 
@@ -50,6 +57,6 @@ Phase 7 - Manual verification of the end-to-end capture workflow
 
 ## Next Actions
 
-1. Run the script on a Windows machine with AutoHotkey v2 installed.
-2. Verify taskbar behavior, tray behavior, hotkey invocation, settings save, and file writing.
-3. Fix any AHK runtime issues discovered during manual verification.
+1. Push the current AutoHotkey prototype state to git as the preserved reference implementation.
+2. Scaffold the Tauri project and decide how to port tray, global hotkey, and markdown-writing behavior.
+3. Rebuild the approved visual design in Tauri and implement side-hide there.

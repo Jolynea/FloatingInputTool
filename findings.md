@@ -30,5 +30,9 @@
 - The next code pass replaced tray placeholders with actual controller wiring for the tray menu, dynamic hotkey registration, input window, settings window, note formatting, and prepend-based file writing.
 - At the source level, the first round of core functionality is now present; the remaining uncertainty is runtime behavior under a real AutoHotkey v2 installation.
 - Runtime validation now confirms the app starts into the tray correctly and the default hotkey can open the input window.
+- The next packaging step is to keep both approved visual themes and expose them through Settings plus tray menu controls, with a follow-system mode tied to the Windows app theme registry value.
+- The approved visual design cannot be fully reproduced with native AutoHotkey GUI controls. AutoHotkey can approximate the workflow, but not the HTML-level frosted-glass fidelity.
+- Because of that constraint, the project is pivoting to Tauri/WebView for the main UI while keeping the AHK build as a working behavior prototype.
+- The future side-hide interaction should be implemented directly in Tauri, where custom window behavior and animation are a much better fit.
 - Approved design spec path:
   [2026-04-21-floating-input-tool-design.md](D:/Claude/Project/FloatingInputTool/docs/superpowers/specs/2026-04-21-floating-input-tool-design.md)

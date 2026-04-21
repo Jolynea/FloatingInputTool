@@ -2,7 +2,9 @@
 
 FloatingInputTool is a lightweight Windows tray utility for capturing fleeting notes into an Obsidian markdown file without requiring Obsidian to be open.
 
-The first version is planned as an AutoHotkey v2 app with:
+The project currently has a working AutoHotkey v2 prototype for core behavior, but the main UI direction is now shifting to Tauri so the final product can match the approved high-fidelity visual design.
+
+The current prototype includes:
 
 - background tray runtime
 - global hotkey to open a floating input window
@@ -10,6 +12,9 @@ The first version is planned as an AutoHotkey v2 app with:
 - separate settings window
 - direct markdown writing with auto-create support
 - prepend-based note insertion using a custom Obsidian `fleeting` callout
+- theme switching with `theme-dark`, `theme-white`, and `follow-system`
+
+The next implementation stage is planned in Tauri/WebView so the app can fully reproduce the approved frosted-glass visual style.
 
 ## Why This Exists
 
@@ -48,7 +53,7 @@ FloatingInputTool/
 \- progress.md
 ```
 
-Implementation files will be added as development proceeds.
+Implementation files are being added incrementally. The AutoHotkey prototype remains in the repo as a behavior reference while the main UI direction moves toward Tauri.
 
 The current scaffold already includes:
 
@@ -69,7 +74,7 @@ FloatingInputTool/
 
 ## Current Scope
 
-Version 1 is expected to cover:
+The validated product scope still covers:
 
 - system tray app lifecycle
 - hidden floating input window
@@ -78,6 +83,8 @@ Version 1 is expected to cover:
 - markdown file auto-creation
 - prepend write behavior
 - safe multi-line callout formatting
+- theme selection from both Settings and the tray menu
+- a future side-hide interaction for preserving draft text without writing to markdown
 
 Version 1 intentionally does not include:
 
@@ -98,17 +105,17 @@ The approved design spec lives at [2026-04-21-floating-input-tool-design.md](D:/
 
 ## Roadmap
 
-1. Scaffold the AutoHotkey v2 app structure.
-2. Implement tray startup and hotkey registration.
-3. Build the floating input window.
-4. Add settings persistence.
-5. Implement markdown formatting and prepend write logic.
-6. Test the full capture flow on Windows.
+1. Preserve the AutoHotkey prototype as a functional reference.
+2. Scaffold the Tauri app shell.
+3. Port tray, hotkey, settings, and markdown writing behavior into Tauri.
+4. Rebuild the input window to match the approved visual mockup.
+5. Add theme switching with dark, white, and follow-system modes.
+6. Implement side-hide behavior in the Tauri window layer.
 7. Prepare compiled distribution.
 
 ## Future Direction
 
-The first release is intentionally optimized for a small Windows-only utility. If the workflow proves useful, the app may later be rewritten in Tauri while preserving the same behavior contract:
+The first release is intentionally optimized for a small Windows-only utility. The project is now formally moving toward Tauri while preserving the same behavior contract:
 
 - tray-based runtime
 - global hotkey capture

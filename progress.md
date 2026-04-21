@@ -42,3 +42,15 @@
 - Fixed `#Warn` variable-name collisions in the file writer and settings window code.
 - Switched both GUIs to lazy creation so the app no longer flashes a window on startup.
 - Confirmed startup now behaves correctly and the global hotkey opens the input window successfully.
+
+### Session 6
+
+- Added theme mode plumbing to config, application state, settings UI, and tray menu.
+- Added a first implementation of `theme-dark`, `theme-white`, and `follow-system`.
+- Refactored the input window toward the approved custom header layout with separate close, hide, timestamp, and Save regions.
+
+### Session 7
+
+- Compared the approved browser mockup against the AutoHotkey implementation and confirmed the AHK GUI cannot fully reproduce the required visual fidelity.
+- Decided to preserve the current AutoHotkey code as a functional prototype and move the main UI implementation to Tauri.
+- Recorded that the future side-hide behavior should be implemented in Tauri rather than forced into the native AHK window layer.
