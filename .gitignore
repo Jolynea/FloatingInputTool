@@ -1,0 +1,10 @@
+# AutoHotkey runtime artifacts
+*.exe
+*.bin
+*.log
+
+# Local config and build output
+dist/
+build/
+tmp/
+
