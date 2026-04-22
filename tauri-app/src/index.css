@@ -1,0 +1,38 @@
+:root {
+  font-family:
+    'Segoe UI', 'Segoe UI Variable', system-ui, -apple-system, BlinkMacSystemFont,
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #111111;
+  background: transparent;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  min-height: 100vh;
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+body {
+  background: transparent;
+  overflow: hidden;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}

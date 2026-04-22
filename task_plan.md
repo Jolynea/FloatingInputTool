@@ -6,7 +6,7 @@ Build the first working version of FloatingInputTool as a lightweight AutoHotkey
 
 ## Current Phase
 
-Phase 10 - Replatform UI to Tauri for high-fidelity visuals
+Phase 12 - Rework Settings into a native modal Tauri window
 
 ## Phases
 
@@ -22,6 +22,8 @@ Phase 10 - Replatform UI to Tauri for high-fidelity visuals
 | 8 | pending | Prepare packaging and usage notes for compiled distribution |
 | 9 | in_progress | Add theme switching, tray theme controls, and visual packaging refinements |
 | 10 | in_progress | Preserve the AutoHotkey prototype and move the main UI implementation to Tauri |
+| 11 | in_progress | Scaffold Tauri app, restore the approved visual shell, and wire persistent theme switching |
+| 12 | in_progress | Split Settings into a dedicated modal window and add shortcut recording |
 
 ## Decisions
 
@@ -38,6 +40,7 @@ Phase 10 - Replatform UI to Tauri for high-fidelity visuals
 - The AutoHotkey version is now a behavior prototype, not the final UI implementation path.
 - Final visual fidelity will be implemented in Tauri/WebView so the app can match the approved mockup.
 - The future side-hide behavior should be implemented directly in the Tauri window layer.
+- The initial Tauri scaffold lives in `tauri-app/` to keep the migration isolated from the preserved AHK prototype.
 
 ## Risks
 
@@ -47,6 +50,8 @@ Phase 10 - Replatform UI to Tauri for high-fidelity visuals
 - Multi-line callout formatting must preserve blank lines without breaking structure.
 - The current environment does not have AutoHotkey installed, so runtime validation is temporarily blocked.
 - Tauri migration adds setup and packaging complexity compared with the AHK prototype.
+- Tray, global hotkey, and filesystem integrations still need to be fully ported from the AHK prototype into Tauri.
+- The new multi-window flow must re-enable the main window reliably if the Settings window closes through any path.
 
 ## Errors Encountered
 
@@ -57,6 +62,6 @@ Phase 10 - Replatform UI to Tauri for high-fidelity visuals
 
 ## Next Actions
 
-1. Push the current AutoHotkey prototype state to git as the preserved reference implementation.
-2. Scaffold the Tauri project and decide how to port tray, global hotkey, and markdown-writing behavior.
-3. Rebuild the approved visual design in Tauri and implement side-hide there.
+1. Manually verify the new native Settings window, especially modal blocking and hotkey recording behavior.
+2. Polish any settings-window edge cases uncovered by runtime testing.
+3. Implement side-hide behavior in the Tauri window layer.

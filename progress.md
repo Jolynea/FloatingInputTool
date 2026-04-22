@@ -54,3 +54,51 @@
 - Compared the approved browser mockup against the AutoHotkey implementation and confirmed the AHK GUI cannot fully reproduce the required visual fidelity.
 - Decided to preserve the current AutoHotkey code as a functional prototype and move the main UI implementation to Tauri.
 - Recorded that the future side-hide behavior should be implemented in Tauri rather than forced into the native AHK window layer.
+
+### Session 8
+
+- Installed the Rust toolchain with the official rustup installer after `winget` proved unreliable.
+- Scaffolded a new `tauri-app/` project with React + Vite and initialized `src-tauri/`.
+- Replaced the default starter UI with the approved floating-window visual shell and theme preview controls.
+- Configured the Tauri window as undecorated, transparent, non-resizable, and always-on-top.
+- Verified the frontend with `npm run build` and the Rust shell with `cargo check`.
+
+### Session 9
+
+- Replaced the temporary system-theme-only frontend logic with a real persisted `themeMode` state shared between React and Rust.
+- Added a Tauri tray menu with `Show`, `Settings`, `Theme`, and `Quit`, plus left-click tray behavior to reopen the main window.
+- Added a lightweight settings overlay so theme mode can be changed inside the app as well as from the tray.
+- Persisted theme mode to the app config directory as JSON and wired frontend updates through Tauri events.
+- Re-verified the frontend with `npm run build` and the Rust shell with `cargo check`.
+
+### Session 10
+
+- Extended the Tauri config model to include the destination markdown file path, with a Documents-based default for first launch.
+- Added Rust-side note formatting and prepend file writing so the app now produces `fleeting` callout blocks directly from the Tauri UI.
+- Wired the main window buttons to their intended semantics: `Close` discards the current draft, `Hide` keeps the draft and hides the window, and `Save` writes to markdown then clears and hides.
+- Expanded the in-app Settings overlay with a target file path field and persistence command, while keeping theme switching intact.
+- Re-verified the new functional baseline with `npm run build` and `cargo check`.
+
+### Session 11
+
+- Added the Tauri v2 global shortcut plugin and registered the default `Ctrl+Alt+Space` hotkey in the desktop shell.
+- Wired the shortcut to toggle the main floating window so the app can be summoned or hidden while staying in the tray.
+- Re-verified the frontend with `npm run build` and the Rust shell with `cargo check` after the shortcut plugin integration.
+
+### Session 12
+
+- Extended the persisted Tauri config with a user-editable `hotkey` field.
+- Added runtime hotkey activation logic that saves the requested shortcut even when registration fails, while preserving the last successfully registered shortcut in the current session.
+- Expanded the Settings overlay with a hotkey input and save action, including red `#f54a45` warning text for conflict or invalid-hotkey cases.
+- Added startup fallback behavior so invalid configured shortcuts fall back to the default hotkey instead of leaving the app without a summon shortcut.
+- Re-verified the frontend with `npm run build` and the Rust shell with `cargo check`.
+
+### Session 13
+
+- Wrote and committed a short follow-up spec for reworking Settings into a dedicated native modal window.
+- Removed the in-window Settings overlay from the main capture surface and replaced it with a dedicated `settings` Tauri window.
+- Added Rust-side single-instance Settings window creation, parent-window ownership, and main-window disabling so Settings behaves like a true modal child flow.
+- Added a second React view for the Settings window while keeping the same bundled frontend build.
+- Replaced manual hotkey typing with a recorder-style input that captures pressed key combinations into accelerator strings.
+- Expanded the capability config so the new Settings window can start dragging and close itself.
+- Re-verified the updated frontend with `npm run build` and the Rust shell with `cargo check`.

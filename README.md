@@ -16,6 +16,8 @@ The current prototype includes:
 
 The next implementation stage is planned in Tauri/WebView so the app can fully reproduce the approved frosted-glass visual style.
 
+The first Tauri scaffold now lives in [tauri-app](D:/Claude/Project/FloatingInputTool/tauri-app).
+
 ## Why This Exists
 
 The goal is to make quick note capture feel closer to a dedicated system tool than a full note-taking app:
