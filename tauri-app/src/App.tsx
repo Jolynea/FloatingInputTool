@@ -9,6 +9,7 @@ import type {
   MainWindowMode,
   MainWindowModeChangedPayload,
   ResolvedTheme,
+  SaveShortcutMode,
   ThemeModeChangedPayload,
 } from './appModel'
 
@@ -265,7 +266,10 @@ function App() {
 
   const canSaveNote = draft.trim().length > 0 && !isSavingNote
   const isDocked = mainWindowMode === 'docked-left' || mainWindowMode === 'docked-right'
+  const isExpandedFromDock = mainWindowMode === 'expanded-from-dock'
   const shouldShowDebugHotzone = appConfig?.debugShowHotzone === 1 && isDocked
+  const saveShortcutMode: SaveShortcutMode = appConfig?.saveShortcutMode ?? 'ctrl-enter-save'
+  const saveShortcutLabel = saveShortcutMode === 'enter-save' ? 'Enter' : 'Ctrl+Enter'
 
   const hideWindow = async () => {
     clearOpenTimer()
@@ -331,14 +335,61 @@ function App() {
     try {
       await invoke('save_note', { noteText: draft })
       setDraft('')
+      setCreatedAt(formatTimestamp(new Date()))
       setCaptureFeedback('Saved to markdown.')
-      await hideWindow()
+      if (isExpandedFromDock) {
+        clearCloseTimer()
+        window.setTimeout(() => {
+          textareaRef.current?.focus()
+        }, 0)
+      } else {
+        await hideWindow()
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setCaptureFeedback(message)
     } finally {
       setIsSavingNote(false)
     }
+  }
+
+  const insertEditorNewline = () => {
+    const editor = textareaRef.current
+    if (!editor) {
+      setDraft((currentDraft) => `${currentDraft}\n`)
+      return
+    }
+
+    const selectionStart = editor.selectionStart
+    const selectionEnd = editor.selectionEnd
+    setDraft((currentDraft) => {
+      const nextDraft = `${currentDraft.slice(0, selectionStart)}\n${currentDraft.slice(selectionEnd)}`
+      window.setTimeout(() => {
+        editor.selectionStart = selectionStart + 1
+        editor.selectionEnd = selectionStart + 1
+      }, 0)
+      return nextDraft
+    })
+  }
+
+  const handleEditorKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.altKey || event.metaKey) {
+      return
+    }
+
+    if (saveShortcutMode === 'enter-save' && event.ctrlKey) {
+      event.preventDefault()
+      insertEditorNewline()
+      return
+    }
+
+    const shouldSave = saveShortcutMode === 'enter-save' ? !event.ctrlKey : event.ctrlKey
+    if (!shouldSave) {
+      return
+    }
+
+    event.preventDefault()
+    void handleSaveNote()
   }
 
   const clearOpenTimer = () => {
@@ -437,6 +488,9 @@ function App() {
   const appShellStyle = {
     '--dock-visible-width': `${appConfig?.visibleHandleWidthPx ?? 22}px`,
     '--dock-hotzone-width': `${appConfig?.hotzoneWidthPx ?? 36}px`,
+    '--empty-input-placeholder-color': appConfig?.emptyInputPlaceholderColor ?? 'rgba(51, 51, 51, 0.42)',
+    '--save-shortcut-text-color': appConfig?.saveShortcutTextColor ?? 'currentColor',
+    '--save-shortcut-font-size': `${appConfig?.saveShortcutFontSizePx ?? 9}px`,
   } as CSSProperties
 
   return (
@@ -484,6 +538,7 @@ function App() {
                 aria-label="Fleeting note content"
                 spellCheck={false}
                 value={draft}
+                placeholder="Capture your fleeting thoughts"
                 onFocus={() => {
                   setIsEditorFocused(true)
                   sideHideDebugLog('editor focus')
@@ -505,6 +560,7 @@ function App() {
                     setCaptureFeedback('')
                   }
                 }}
+                onKeyDown={handleEditorKeyDown}
               />
             </div>
 
@@ -528,7 +584,8 @@ function App() {
                   </svg>
                 </button>
                 <button className="save-button" type="button" disabled={!canSaveNote} onClick={handleSaveNote}>
-                  {isSavingNote ? 'Saving' : 'Save'}
+                  <span className="save-button-label">{isSavingNote ? 'Saving' : 'Save'}</span>
+                  <span className="save-button-shortcut">{saveShortcutLabel}</span>
                 </button>
               </div>
             </footer>

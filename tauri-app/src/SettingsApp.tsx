@@ -8,10 +8,11 @@ import type {
   FeedbackTone,
   HotkeyUpdateResponse,
   ResolvedTheme,
+  SaveShortcutMode,
   ThemeMode,
   ThemeModeChangedPayload,
 } from './appModel'
-import { themeOptions } from './appModel'
+import { saveShortcutOptions, themeOptions } from './appModel'
 
 const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta'])
 
@@ -24,9 +25,11 @@ function SettingsApp() {
   const [targetFileInput, setTargetFileInput] = useState('')
   const [hotkey, setHotkey] = useState('')
   const [hotkeyInput, setHotkeyInput] = useState('')
+  const [saveShortcutMode, setSaveShortcutMode] = useState<SaveShortcutMode>('ctrl-enter-save')
   const [isSavingTheme, setIsSavingTheme] = useState(false)
   const [isSavingPath, setIsSavingPath] = useState(false)
   const [isSavingHotkey, setIsSavingHotkey] = useState(false)
+  const [isSavingSaveShortcutMode, setIsSavingSaveShortcutMode] = useState(false)
   const [settingsFeedback, setSettingsFeedback] = useState('')
   const [settingsFeedbackTone, setSettingsFeedbackTone] = useState<FeedbackTone>('normal')
   const [isRecordingHotkey, setIsRecordingHotkey] = useState(false)
@@ -54,6 +57,7 @@ function SettingsApp() {
           setTargetFileInput(config.targetFilePath)
           setHotkey(config.hotkey)
           setHotkeyInput(config.hotkey)
+          setSaveShortcutMode(config.saveShortcutMode)
         }
       } catch (error) {
         console.error('Failed to load settings config', error)
@@ -194,6 +198,30 @@ function SettingsApp() {
     }
   }
 
+  const handleSaveShortcutModeChange = async (nextMode: SaveShortcutMode) => {
+    if (saveShortcutMode === nextMode || isSavingSaveShortcutMode) {
+      return
+    }
+
+    setIsSavingSaveShortcutMode(true)
+    setSettingsFeedback('')
+    setSettingsFeedbackTone('normal')
+
+    try {
+      const config = await invoke<AppConfig>('set_save_shortcut_mode', {
+        saveShortcutMode: nextMode,
+      })
+      setSaveShortcutMode(config.saveShortcutMode)
+      setSettingsFeedback('Save shortcut updated.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setSettingsFeedback(message)
+      setSettingsFeedbackTone('error')
+    } finally {
+      setIsSavingSaveShortcutMode(false)
+    }
+  }
+
   const handleHotkeyKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     event.preventDefault()
     event.stopPropagation()
@@ -318,6 +346,33 @@ function SettingsApp() {
                     type="button"
                     onClick={() => handleThemeChange(option.value)}
                     disabled={isSavingTheme}
+                  >
+                    <span className="theme-option-label">{option.label}</span>
+                    <span className="theme-option-note">{option.note}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="settings-section">
+            <div className="settings-label-row">
+              <span className="settings-label">Save Shortcut</span>
+              <span className="settings-value">
+                {saveShortcutOptions.find((option) => option.value === saveShortcutMode)?.label}
+              </span>
+            </div>
+
+            <div className="theme-option-list">
+              {saveShortcutOptions.map((option) => {
+                const selected = option.value === saveShortcutMode
+                return (
+                  <button
+                    key={option.value}
+                    className={`theme-option ${selected ? 'is-selected' : ''}`}
+                    type="button"
+                    onClick={() => handleSaveShortcutModeChange(option.value)}
+                    disabled={isSavingSaveShortcutMode}
                   >
                     <span className="theme-option-label">{option.label}</span>
                     <span className="theme-option-note">{option.note}</span>

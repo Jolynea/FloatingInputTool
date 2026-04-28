@@ -12,6 +12,10 @@ pub const DEFAULT_HOVER_OPEN_DELAY_MS: u64 = 180;
 pub const DEFAULT_HOVER_CLOSE_DELAY_MS: u64 = 320;
 pub const DEFAULT_HOTZONE_WIDTH_PX: u32 = 36;
 pub const DEFAULT_DEBUG_SHOW_HOTZONE: u8 = 0;
+pub const DEFAULT_SAVE_SHORTCUT_MODE: SaveShortcutMode = SaveShortcutMode::CtrlEnterSave;
+pub const DEFAULT_EMPTY_INPUT_PLACEHOLDER_COLOR: &str = "rgba(51, 51, 51, 0.42)";
+pub const DEFAULT_SAVE_SHORTCUT_TEXT_COLOR: &str = "currentColor";
+pub const DEFAULT_SAVE_SHORTCUT_FONT_SIZE_PX: u32 = 9;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -20,6 +24,14 @@ pub enum ThemeMode {
   FollowSystem,
   ThemeWhite,
   ThemeDark,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum SaveShortcutMode {
+  #[default]
+  CtrlEnterSave,
+  EnterSave,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -43,6 +55,14 @@ pub struct AppConfig {
   pub hotzone_width_px: u32,
   #[serde(default = "default_debug_show_hotzone")]
   pub debug_show_hotzone: u8,
+  #[serde(default = "default_save_shortcut_mode")]
+  pub save_shortcut_mode: SaveShortcutMode,
+  #[serde(default = "default_empty_input_placeholder_color")]
+  pub empty_input_placeholder_color: String,
+  #[serde(default = "default_save_shortcut_text_color")]
+  pub save_shortcut_text_color: String,
+  #[serde(default = "default_save_shortcut_font_size_px")]
+  pub save_shortcut_font_size_px: u32,
   pub theme_mode: ThemeMode,
 }
 
@@ -78,6 +98,15 @@ pub fn load_app_config<R: Runtime>(app: &AppHandle<R>) -> Result<AppConfig, Stri
   }
   if config.hotzone_width_px == 0 {
     config.hotzone_width_px = DEFAULT_HOTZONE_WIDTH_PX;
+  }
+  if config.empty_input_placeholder_color.trim().is_empty() {
+    config.empty_input_placeholder_color = DEFAULT_EMPTY_INPUT_PLACEHOLDER_COLOR.into();
+  }
+  if config.save_shortcut_text_color.trim().is_empty() {
+    config.save_shortcut_text_color = DEFAULT_SAVE_SHORTCUT_TEXT_COLOR.into();
+  }
+  if config.save_shortcut_font_size_px == 0 {
+    config.save_shortcut_font_size_px = DEFAULT_SAVE_SHORTCUT_FONT_SIZE_PX;
   }
 
   Ok(config)
@@ -118,6 +147,10 @@ pub fn default_app_config<R: Runtime>(app: &AppHandle<R>) -> AppConfig {
     hover_close_delay_ms: DEFAULT_HOVER_CLOSE_DELAY_MS,
     hotzone_width_px: DEFAULT_HOTZONE_WIDTH_PX,
     debug_show_hotzone: DEFAULT_DEBUG_SHOW_HOTZONE,
+    save_shortcut_mode: DEFAULT_SAVE_SHORTCUT_MODE,
+    empty_input_placeholder_color: DEFAULT_EMPTY_INPUT_PLACEHOLDER_COLOR.into(),
+    save_shortcut_text_color: DEFAULT_SAVE_SHORTCUT_TEXT_COLOR.into(),
+    save_shortcut_font_size_px: DEFAULT_SAVE_SHORTCUT_FONT_SIZE_PX,
     theme_mode: ThemeMode::default(),
   }
 }
@@ -160,4 +193,20 @@ fn default_hotzone_width_px() -> u32 {
 
 fn default_debug_show_hotzone() -> u8 {
   DEFAULT_DEBUG_SHOW_HOTZONE
+}
+
+fn default_save_shortcut_mode() -> SaveShortcutMode {
+  DEFAULT_SAVE_SHORTCUT_MODE
+}
+
+fn default_empty_input_placeholder_color() -> String {
+  DEFAULT_EMPTY_INPUT_PLACEHOLDER_COLOR.into()
+}
+
+fn default_save_shortcut_text_color() -> String {
+  DEFAULT_SAVE_SHORTCUT_TEXT_COLOR.into()
+}
+
+fn default_save_shortcut_font_size_px() -> u32 {
+  DEFAULT_SAVE_SHORTCUT_FONT_SIZE_PX
 }

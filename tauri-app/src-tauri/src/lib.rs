@@ -1,6 +1,8 @@
 mod config;
 
-use config::{default_app_config, load_app_config, save_app_config, AppConfig, ThemeMode, DEFAULT_HOTKEY};
+use config::{
+  default_app_config, load_app_config, save_app_config, AppConfig, SaveShortcutMode, ThemeMode, DEFAULT_HOTKEY,
+};
 use std::sync::Mutex;
 use std::{fs, path::Path};
 use std::{thread, time::Duration};
@@ -181,6 +183,23 @@ fn set_hotkey(
     config: next_config,
     warning,
   })
+}
+
+#[tauri::command]
+fn set_save_shortcut_mode(
+  app: AppHandle,
+  state: State<'_, AppState>,
+  save_shortcut_mode: SaveShortcutMode,
+) -> Result<AppConfig, String> {
+  let mut config = state
+    .config
+    .lock()
+    .map_err(|error| format!("failed to lock app state: {error}"))?;
+
+  config.save_shortcut_mode = save_shortcut_mode;
+  save_app_config(&app, &config)?;
+
+  Ok(config.clone())
 }
 
 #[tauri::command]
@@ -1250,6 +1269,7 @@ pub fn run() {
       set_theme_mode,
       set_target_file_path,
       set_hotkey,
+      set_save_shortcut_mode,
       save_note,
       begin_manual_window_drag,
       end_manual_window_drag,
