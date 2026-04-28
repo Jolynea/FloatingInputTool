@@ -111,3 +111,14 @@
 - Added docked-mode frontend rendering for the visible side handle plus hover-driven expand and delayed re-hide behavior.
 - Added a debug hotzone overlay that appears only when `debugShowHotzone = 1`.
 - Re-verified the updated frontend with `npm run build` and the Rust shell with `cargo check`.
+
+### Session 15
+
+- Added fixed-width markdown target chips to the main input window and aligned them with the editor left edge.
+- Added a target-list cancel action in Settings that discards unsaved target edits and only appears while the target list is expanded.
+- Tuned the docked side handle into a rounder folder-tab shape without changing side-hide behavior.
+- Re-verified the frontend with `npm run build`.
+- Added drag-handle sorting for Markdown Targets in Settings and compressed the target list into a table-like layout.
+- Re-verified the frontend with `npm run build`.
+- Added an explicit Markdown Targets edit mode so sorting and target edits stay local until `Save Targets`, while `Cancel` discards them.
+- Re-verified the frontend with `npm run build`.

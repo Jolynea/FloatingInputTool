@@ -6,8 +6,12 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import './App.css'
 import type {
   AppConfig,
+  AppConfigChangedPayload,
+  CustomTheme,
+  CustomThemePreviewChangedPayload,
   MainWindowMode,
   MainWindowModeChangedPayload,
+  MarkdownTarget,
   ResolvedTheme,
   SaveShortcutMode,
   ThemeModeChangedPayload,
@@ -28,6 +32,7 @@ function App() {
     window.matchMedia('(prefers-color-scheme: dark)').matches,
   )
   const [themeMode, setThemeMode] = useState<AppConfig['themeMode']>('follow-system')
+  const [customThemePreview, setCustomThemePreview] = useState<CustomTheme | null>(null)
   const [mainWindowMode, setMainWindowMode] = useState<MainWindowMode>('normal')
   const [dockSide, setDockSide] = useState<'left' | 'right' | null>(null)
   const [draft, setDraft] = useState('')
@@ -68,6 +73,8 @@ function App() {
   useEffect(() => {
     let ignore = false
     let unlistenThemeChange: (() => void) | undefined
+    let unlistenAppConfigChange: (() => void) | undefined
+    let unlistenCustomThemePreviewChange: (() => void) | undefined
     let unlistenMainWindowModeChange: (() => void) | undefined
 
     const loadConfig = async () => {
@@ -90,6 +97,27 @@ function App() {
       })
     }
 
+    const attachAppConfigListener = async () => {
+      unlistenAppConfigChange = await listen<AppConfigChangedPayload>('app-config-changed', (event) => {
+        if (!ignore) {
+          setAppConfig(event.payload)
+          setThemeMode(event.payload.themeMode)
+          setCustomThemePreview(null)
+        }
+      })
+    }
+
+    const attachCustomThemePreviewListener = async () => {
+      unlistenCustomThemePreviewChange = await listen<CustomThemePreviewChangedPayload>(
+        'custom-theme-preview-changed',
+        (event) => {
+          if (!ignore) {
+            setCustomThemePreview(event.payload.customTheme)
+          }
+        },
+      )
+    }
+
     const attachMainWindowModeListener = async () => {
       unlistenMainWindowModeChange = await listen<MainWindowModeChangedPayload>(
         'main-window-mode-changed',
@@ -106,6 +134,12 @@ function App() {
     attachThemeListener().catch((error) => {
       console.error('Failed to attach theme listener', error)
     })
+    attachAppConfigListener().catch((error) => {
+      console.error('Failed to attach app config listener', error)
+    })
+    attachCustomThemePreviewListener().catch((error) => {
+      console.error('Failed to attach custom theme preview listener', error)
+    })
     attachMainWindowModeListener().catch((error) => {
       console.error('Failed to attach main window mode listener', error)
     })
@@ -113,6 +147,8 @@ function App() {
     return () => {
       ignore = true
       unlistenThemeChange?.()
+      unlistenAppConfigChange?.()
+      unlistenCustomThemePreviewChange?.()
       unlistenMainWindowModeChange?.()
     }
   }, [])
@@ -261,6 +297,10 @@ function App() {
       return 'white'
     }
 
+    if (themeMode === 'custom') {
+      return 'custom'
+    }
+
     return prefersDark ? 'dark' : 'white'
   }, [prefersDark, themeMode])
 
@@ -270,6 +310,9 @@ function App() {
   const shouldShowDebugHotzone = appConfig?.debugShowHotzone === 1 && isDocked
   const saveShortcutMode: SaveShortcutMode = appConfig?.saveShortcutMode ?? 'ctrl-enter-save'
   const saveShortcutLabel = saveShortcutMode === 'enter-save' ? 'Enter' : 'Ctrl+Enter'
+  const customTheme = customThemePreview ?? appConfig?.customTheme ?? defaultCustomTheme
+  const targets = appConfig?.targets ?? []
+  const activeTargetId = appConfig?.activeTargetId ?? targets[0]?.id ?? ''
 
   const hideWindow = async () => {
     clearOpenTimer()
@@ -322,6 +365,22 @@ function App() {
     setDraft('')
     setCaptureFeedback('')
     await hideWindow()
+  }
+
+  const handleTargetSelect = async (targetId: string) => {
+    if (!targetId || targetId === activeTargetId) {
+      return
+    }
+
+    try {
+      const config = await invoke<AppConfig>('set_active_target_id', {
+        activeTargetId: targetId,
+      })
+      setAppConfig(config)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setCaptureFeedback(message)
+    }
   }
 
   const handleSaveNote = async () => {
@@ -488,9 +547,13 @@ function App() {
   const appShellStyle = {
     '--dock-visible-width': `${appConfig?.visibleHandleWidthPx ?? 22}px`,
     '--dock-hotzone-width': `${appConfig?.hotzoneWidthPx ?? 36}px`,
-    '--empty-input-placeholder-color': appConfig?.emptyInputPlaceholderColor ?? 'rgba(51, 51, 51, 0.42)',
+    '--empty-input-placeholder-color': appConfig?.emptyInputPlaceholderColor ?? '#8A8A8A',
     '--save-shortcut-text-color': appConfig?.saveShortcutTextColor ?? 'currentColor',
     '--save-shortcut-font-size': `${appConfig?.saveShortcutFontSizePx ?? 9}px`,
+    '--custom-window-background': hexToRgba(customTheme.windowColor, customTheme.windowOpacity),
+    '--custom-window-color': customTheme.windowColor,
+    '--custom-text-color': customTheme.textColor,
+    '--custom-accent-color': customTheme.accentColor,
   } as CSSProperties
 
   return (
@@ -531,6 +594,21 @@ function App() {
                 &times;
               </button>
             </header>
+
+            {targets.length > 1 ? (
+              <div className="target-switcher" aria-label="Markdown targets">
+                {targets.map((target) => (
+                  <button
+                    key={target.id}
+                    className={`target-chip ${target.id === activeTargetId ? 'is-selected' : ''}`}
+                    type="button"
+                    onClick={() => handleTargetSelect(target.id)}
+                  >
+                    {targetLabel(target)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
             <div className="editor-shell">
               <textarea
@@ -604,6 +682,33 @@ function formatTimestamp(date: Date) {
   const minutes = String(date.getMinutes()).padStart(2, '0')
 
   return `${year}-${month}-${day} ${hours}:${minutes}`
+}
+
+const defaultCustomTheme: CustomTheme = {
+  windowColor: '#F8F8FF',
+  windowOpacity: 0.86,
+  textColor: '#333333',
+  accentColor: '#3EB4BF',
+}
+
+function hexToRgba(hexColor: string, opacity: number) {
+  const normalized = /^#[\da-f]{6}$/i.test(hexColor) ? hexColor : defaultCustomTheme.windowColor
+  const red = Number.parseInt(normalized.slice(1, 3), 16)
+  const green = Number.parseInt(normalized.slice(3, 5), 16)
+  const blue = Number.parseInt(normalized.slice(5, 7), 16)
+  const alpha = Number.isFinite(opacity) ? Math.min(Math.max(opacity, 0.35), 1) : defaultCustomTheme.windowOpacity
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`
+}
+
+function targetLabel(target: MarkdownTarget) {
+  if (target.nickname.trim()) {
+    return target.nickname.trim()
+  }
+
+  const normalizedPath = target.path.replaceAll('\\', '/')
+  const fileName = normalizedPath.split('/').filter(Boolean).pop()
+  return fileName?.replace(/\.md$/i, '') || 'Target'
 }
 
 export default App

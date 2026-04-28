@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { CSSProperties, PointerEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { emit, listen } from '@tauri-apps/api/event'
 import { getCurrentWindow, Window } from '@tauri-apps/api/window'
 import './App.css'
 import type {
   AppConfig,
+  CustomTheme,
   FeedbackTone,
   HotkeyUpdateResponse,
+  MarkdownTarget,
   ResolvedTheme,
   SaveShortcutMode,
   ThemeMode,
@@ -16,20 +19,33 @@ import { saveShortcutOptions, themeOptions } from './appModel'
 
 const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta'])
 
+const defaultCustomTheme: CustomTheme = {
+  windowColor: '#F8F8FF',
+  windowOpacity: 0.86,
+  textColor: '#333333',
+  accentColor: '#3EB4BF',
+}
+
 function SettingsApp() {
   const [prefersDark, setPrefersDark] = useState(() =>
     window.matchMedia('(prefers-color-scheme: dark)').matches,
   )
   const [themeMode, setThemeMode] = useState<ThemeMode>('follow-system')
-  const [targetFilePath, setTargetFilePath] = useState('')
-  const [targetFileInput, setTargetFileInput] = useState('')
+  const [targets, setTargets] = useState<MarkdownTarget[]>([])
+  const [activeTargetId, setActiveTargetId] = useState('')
+  const [isTargetListExpanded, setIsTargetListExpanded] = useState(true)
+  const [isEditingTargets, setIsEditingTargets] = useState(false)
   const [hotkey, setHotkey] = useState('')
   const [hotkeyInput, setHotkeyInput] = useState('')
   const [saveShortcutMode, setSaveShortcutMode] = useState<SaveShortcutMode>('ctrl-enter-save')
+  const [customThemeDraft, setCustomThemeDraft] = useState<CustomTheme>(defaultCustomTheme)
+  const [savedCustomTheme, setSavedCustomTheme] = useState<CustomTheme>(defaultCustomTheme)
+  const [draggedTargetId, setDraggedTargetId] = useState('')
   const [isSavingTheme, setIsSavingTheme] = useState(false)
-  const [isSavingPath, setIsSavingPath] = useState(false)
+  const [isSavingTargets, setIsSavingTargets] = useState(false)
   const [isSavingHotkey, setIsSavingHotkey] = useState(false)
   const [isSavingSaveShortcutMode, setIsSavingSaveShortcutMode] = useState(false)
+  const [isSavingCustomTheme, setIsSavingCustomTheme] = useState(false)
   const [settingsFeedback, setSettingsFeedback] = useState('')
   const [settingsFeedbackTone, setSettingsFeedbackTone] = useState<FeedbackTone>('normal')
   const [isRecordingHotkey, setIsRecordingHotkey] = useState(false)
@@ -53,11 +69,13 @@ function SettingsApp() {
         const config = await invoke<AppConfig>('get_app_config')
         if (!ignore) {
           setThemeMode(config.themeMode)
-          setTargetFilePath(config.targetFilePath)
-          setTargetFileInput(config.targetFilePath)
+          setTargets(config.targets)
+          setActiveTargetId(config.activeTargetId)
           setHotkey(config.hotkey)
           setHotkeyInput(config.hotkey)
           setSaveShortcutMode(config.saveShortcutMode)
+          setCustomThemeDraft(config.customTheme)
+          setSavedCustomTheme(config.customTheme)
         }
       } catch (error) {
         console.error('Failed to load settings config', error)
@@ -93,12 +111,22 @@ function SettingsApp() {
       return 'white'
     }
 
+    if (themeMode === 'custom') {
+      return 'custom'
+    }
+
     return prefersDark ? 'dark' : 'white'
   }, [prefersDark, themeMode])
 
   const themeModeLabel = useMemo(() => {
     return themeOptions.find((option) => option.value === themeMode)?.label ?? 'Follow System'
   }, [themeMode])
+
+  const settingsShellStyle = {
+    '--custom-window-color': customThemeDraft.windowColor,
+    '--custom-text-color': customThemeDraft.textColor,
+    '--custom-accent-color': customThemeDraft.accentColor,
+  } as CSSProperties
 
   const hotkeyRecorderNote = useMemo(() => {
     if (isRecordingHotkey) {
@@ -141,6 +169,9 @@ function SettingsApp() {
     try {
       const config = await invoke<AppConfig>('set_theme_mode', { themeMode: nextThemeMode })
       setThemeMode(config.themeMode)
+      if (config.themeMode === 'custom') {
+        void emit('custom-theme-preview-changed', { customTheme: customThemeDraft })
+      }
       setSettingsFeedback('Theme updated.')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -150,24 +181,145 @@ function SettingsApp() {
     }
   }
 
-  const handleSavePath = async () => {
-    setIsSavingPath(true)
+  const handleAddTarget = () => {
+    const nextTarget: MarkdownTarget = {
+      id: createTargetId(),
+      nickname: 'New Target',
+      path: '',
+    }
+    setTargets((currentTargets) => [...currentTargets, nextTarget])
+    setActiveTargetId(nextTarget.id)
+  }
+
+  const handleUpdateTarget = (targetId: string, patch: Partial<MarkdownTarget>) => {
+    setTargets((currentTargets) =>
+      currentTargets.map((target) => (target.id === targetId ? { ...target, ...patch } : target)),
+    )
+  }
+
+  const handleRemoveTarget = (targetId: string) => {
+    setTargets((currentTargets) => {
+      if (currentTargets.length <= 1) {
+        return currentTargets
+      }
+
+      const nextTargets = currentTargets.filter((target) => target.id !== targetId)
+      if (activeTargetId === targetId) {
+        setActiveTargetId(nextTargets[0]?.id ?? '')
+      }
+      return nextTargets
+    })
+  }
+
+  const moveTarget = (draggedId: string, targetId: string, placement: 'before' | 'after') => {
+    if (!draggedId || draggedId === targetId) {
+      return
+    }
+
+    setTargets((currentTargets) => {
+      const draggedTarget = currentTargets.find((target) => target.id === draggedId)
+      if (!draggedTarget) {
+        return currentTargets
+      }
+
+      const nextTargets = currentTargets.filter((target) => target.id !== draggedId)
+      const targetIndex = nextTargets.findIndex((target) => target.id === targetId)
+      if (targetIndex === -1) {
+        return currentTargets
+      }
+
+      nextTargets.splice(targetIndex + (placement === 'after' ? 1 : 0), 0, draggedTarget)
+      return nextTargets
+    })
+  }
+
+  const handleTargetDragStart = (targetId: string, event: PointerEvent<HTMLButtonElement>) => {
+    if (!isEditingTargets) {
+      return
+    }
+
+    if (event.button !== 0) {
+      return
+    }
+
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setDraggedTargetId(targetId)
+  }
+
+  useEffect(() => {
+    if (!draggedTargetId) {
+      return
+    }
+
+    const handlePointerMove = (event: globalThis.PointerEvent) => {
+      const targetRow = document
+        .elementsFromPoint(event.clientX, event.clientY)
+        .find(
+          (element): element is HTMLElement =>
+            element instanceof HTMLElement && typeof element.dataset.targetId === 'string',
+        )
+
+      const targetId = targetRow?.dataset.targetId
+      if (!targetId || targetId === draggedTargetId) {
+        return
+      }
+
+      const rect = targetRow.getBoundingClientRect()
+      const placement = event.clientY > rect.top + rect.height / 2 ? 'after' : 'before'
+      moveTarget(draggedTargetId, targetId, placement)
+    }
+
+    const handlePointerEnd = () => {
+      setDraggedTargetId('')
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerEnd)
+    window.addEventListener('blur', handlePointerEnd)
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerEnd)
+      window.removeEventListener('blur', handlePointerEnd)
+    }
+  }, [draggedTargetId])
+
+  const handleSaveTargets = async () => {
+    setIsSavingTargets(true)
     setSettingsFeedback('')
     setSettingsFeedbackTone('normal')
 
     try {
-      const config = await invoke<AppConfig>('set_target_file_path', {
-        targetFilePath: targetFileInput,
+      const config = await invoke<AppConfig>('set_markdown_targets', {
+        targets,
+        activeTargetId,
       })
-      setTargetFilePath(config.targetFilePath)
-      setTargetFileInput(config.targetFilePath)
-      setSettingsFeedback('Target markdown file updated.')
+      setTargets(config.targets)
+      setActiveTargetId(config.activeTargetId)
+      setIsEditingTargets(false)
+      setSettingsFeedback('Markdown targets updated.')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setSettingsFeedback(message)
       setSettingsFeedbackTone('error')
     } finally {
-      setIsSavingPath(false)
+      setIsSavingTargets(false)
+    }
+  }
+
+  const handleCancelTargets = async () => {
+    try {
+      const config = await invoke<AppConfig>('get_app_config')
+      setTargets(config.targets)
+      setActiveTargetId(config.activeTargetId)
+      setIsEditingTargets(false)
+      setSettingsFeedback('Markdown target changes discarded.')
+      setSettingsFeedbackTone('normal')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setSettingsFeedback(message)
+      setSettingsFeedbackTone('error')
     }
   }
 
@@ -222,6 +374,43 @@ function SettingsApp() {
     }
   }
 
+  const handleCustomThemeDraftChange = (nextCustomTheme: CustomTheme) => {
+    setCustomThemeDraft(nextCustomTheme)
+    if (themeMode === 'custom') {
+      void emit('custom-theme-preview-changed', { customTheme: nextCustomTheme })
+    }
+  }
+
+  const handleSaveCustomTheme = async () => {
+    setIsSavingCustomTheme(true)
+    setSettingsFeedback('')
+    setSettingsFeedbackTone('normal')
+
+    try {
+      const config = await invoke<AppConfig>('set_custom_theme', {
+        customTheme: customThemeDraft,
+      })
+      setCustomThemeDraft(config.customTheme)
+      setSavedCustomTheme(config.customTheme)
+      setSettingsFeedback('Custom theme saved.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setSettingsFeedback(message)
+      setSettingsFeedbackTone('error')
+    } finally {
+      setIsSavingCustomTheme(false)
+    }
+  }
+
+  const handleCancelCustomTheme = () => {
+    setCustomThemeDraft(savedCustomTheme)
+    if (themeMode === 'custom') {
+      void emit('custom-theme-preview-changed', { customTheme: savedCustomTheme })
+    }
+    setSettingsFeedback('')
+    setSettingsFeedbackTone('normal')
+  }
+
   const handleHotkeyKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     event.preventDefault()
     event.stopPropagation()
@@ -250,7 +439,7 @@ function SettingsApp() {
   }
 
   return (
-    <main className={`settings-app-shell theme-${resolvedTheme}`}>
+    <main className={`settings-app-shell theme-${resolvedTheme}`} style={settingsShellStyle}>
       <section className="settings-panel settings-window" role="dialog" aria-label="Settings">
         <div className="settings-header">
           <div
@@ -277,26 +466,112 @@ function SettingsApp() {
         <div className="settings-content">
           <div className="settings-section">
             <div className="settings-label-row">
-              <span className="settings-label">Target File</span>
-            </div>
-            <input
-              className="settings-input"
-              type="text"
-              value={targetFileInput}
-              onChange={(event) => setTargetFileInput(event.target.value)}
-              placeholder="D:\\OneDrive\\Obsidian\\Fleeting Note.md"
-            />
-            <div className="settings-actions">
+              <span className="settings-label">Markdown Targets</span>
               <button
-                className="settings-save-button"
+                className="settings-text-button"
                 type="button"
-                onClick={handleSavePath}
-                disabled={isSavingPath}
+                onClick={() => {
+                  setIsTargetListExpanded((isExpanded) => !isExpanded)
+                  setIsEditingTargets(false)
+                  setDraggedTargetId('')
+                }}
               >
-                {isSavingPath ? 'Saving Path' : 'Save Path'}
+                {isTargetListExpanded ? 'Collapse' : 'Expand'}
               </button>
-              <span className="settings-inline-value">{targetFilePath}</span>
             </div>
+            {isTargetListExpanded ? (
+              <div className={`target-list-editor ${isEditingTargets ? 'is-editing' : ''}`}>
+                <div className="target-editor-header" aria-hidden="true">
+                  <span />
+                  <span>Nickname</span>
+                  <span>Path</span>
+                  <span>Options</span>
+                </div>
+                {targets.map((target) => (
+                  <div
+                    className={`target-editor-row ${target.id === draggedTargetId ? 'is-dragging' : ''}`}
+                    key={target.id}
+                    data-target-id={target.id}
+                  >
+                    <button
+                      className="target-drag-handle"
+                      type="button"
+                      aria-label={`Drag ${target.nickname || target.path || 'target'}`}
+                      onPointerDown={(event) => handleTargetDragStart(target.id, event)}
+                    >
+                      ⋮⋮
+                    </button>
+                    <span className="target-drag-placeholder" aria-hidden="true">
+                      ||
+                    </span>
+                    <label className="target-editor-field">
+                      <input
+                        className="settings-input"
+                        type="text"
+                        value={target.nickname}
+                        readOnly={!isEditingTargets}
+                        onChange={(event) => handleUpdateTarget(target.id, { nickname: event.target.value })}
+                      />
+                    </label>
+                    <label className="target-editor-field target-editor-path">
+                      <input
+                        className="settings-input"
+                        type="text"
+                        value={target.path}
+                        readOnly={!isEditingTargets}
+                        onChange={(event) => handleUpdateTarget(target.id, { path: event.target.value })}
+                        placeholder="D:\\OneDrive\\Obsidian\\Fleeting Note.md"
+                      />
+                    </label>
+                    <div className="target-editor-actions">
+                      <label className="target-active-option">
+                        <input
+                          type="radio"
+                          checked={target.id === activeTargetId}
+                          disabled={!isEditingTargets}
+                          onChange={() => setActiveTargetId(target.id)}
+                        />
+                        Active
+                      </label>
+                      <button
+                        className="settings-text-button target-remove-button"
+                        type="button"
+                        onClick={() => handleRemoveTarget(target.id)}
+                        disabled={!isEditingTargets || targets.length <= 1}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {isTargetListExpanded ? (
+              <div className="settings-actions">
+                {isEditingTargets ? (
+                  <>
+                    <button className="settings-save-button" type="button" onClick={handleAddTarget}>
+                      Add Target
+                    </button>
+                    <button
+                      className="settings-save-button"
+                      type="button"
+                      onClick={handleSaveTargets}
+                      disabled={isSavingTargets}
+                    >
+                      {isSavingTargets ? 'Saving Targets' : 'Save Targets'}
+                    </button>
+                    <button className="settings-save-button is-danger" type="button" onClick={handleCancelTargets}>
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button className="settings-save-button" type="button" onClick={() => setIsEditingTargets(true)}>
+                    Edit
+                  </button>
+                )}
+              </div>
+            ) : null}
           </div>
 
           <div className="settings-section">
@@ -353,6 +628,84 @@ function SettingsApp() {
                 )
               })}
             </div>
+
+            {themeMode === 'custom' ? (
+              <div className="custom-theme-editor">
+                <label className="custom-theme-field">
+                  <span className="settings-label">Window Color</span>
+                  <input
+                    type="color"
+                    value={customThemeDraft.windowColor}
+                    onChange={(event) =>
+                      handleCustomThemeDraftChange({
+                        ...customThemeDraft,
+                        windowColor: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+
+                <label className="custom-theme-field">
+                  <span className="settings-label">Window Opacity</span>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min="0.35"
+                    max="1"
+                    step="0.01"
+                    value={customThemeDraft.windowOpacity}
+                    onChange={(event) =>
+                      handleCustomThemeDraftChange({
+                        ...customThemeDraft,
+                        windowOpacity: parseOpacityInput(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+
+                <label className="custom-theme-field">
+                  <span className="settings-label">Text Color</span>
+                  <input
+                    type="color"
+                    value={customThemeDraft.textColor}
+                    onChange={(event) =>
+                      handleCustomThemeDraftChange({
+                        ...customThemeDraft,
+                        textColor: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+
+                <label className="custom-theme-field">
+                  <span className="settings-label">Accent Color</span>
+                  <input
+                    type="color"
+                    value={customThemeDraft.accentColor}
+                    onChange={(event) =>
+                      handleCustomThemeDraftChange({
+                        ...customThemeDraft,
+                        accentColor: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+
+                <div className="settings-actions">
+                  <button
+                    className="settings-save-button"
+                    type="button"
+                    onClick={handleSaveCustomTheme}
+                    disabled={isSavingCustomTheme}
+                  >
+                    {isSavingCustomTheme ? 'Saving Custom' : 'Save Custom'}
+                  </button>
+                  <button className="settings-save-button is-secondary" type="button" onClick={handleCancelCustomTheme}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="settings-section">
@@ -456,6 +809,19 @@ function normalizeAcceleratorKey(key: string) {
   }
 
   return specialKeyMap[key] ?? null
+}
+
+function parseOpacityInput(value: string) {
+  const nextOpacity = Number(value)
+  if (!Number.isFinite(nextOpacity)) {
+    return defaultCustomTheme.windowOpacity
+  }
+
+  return Math.min(Math.max(nextOpacity, 0.35), 1)
+}
+
+function createTargetId() {
+  return `target-${Date.now().toString(36)}`
 }
 
 export default SettingsApp
