@@ -122,3 +122,10 @@
 - Re-verified the frontend with `npm run build`.
 - Added an explicit Markdown Targets edit mode so sorting and target edits stay local until `Save Targets`, while `Cancel` discards them.
 - Re-verified the frontend with `npm run build`.
+
+### Session 16
+
+- Changed the default side-hide close delay from `320ms` to `100ms`.
+- Added a configurable note template with `{{timestamp}}`, `{{text}}`, and `{{text.callout}}` placeholders.
+- Added a Settings section for editing, saving, canceling, and restoring the default note template.
+- Re-verified the frontend with `npm run build` and the Rust shell with `cargo check`.

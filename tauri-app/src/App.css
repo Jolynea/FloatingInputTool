@@ -787,6 +787,13 @@
   outline: none;
 }
 
+.note-template-input {
+  min-height: 132px;
+  resize: vertical;
+  line-height: 1.45;
+  white-space: pre;
+}
+
 .theme-white .settings-input {
   color: #333333;
   background: rgba(255, 255, 255, 0.88);

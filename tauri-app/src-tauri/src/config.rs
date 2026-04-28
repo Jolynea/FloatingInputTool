@@ -10,7 +10,7 @@ pub const DEFAULT_SIDE_HIDE_ENABLED: u8 = 1;
 pub const DEFAULT_EDGE_SNAP_THRESHOLD_PX: u32 = 36;
 pub const DEFAULT_VISIBLE_HANDLE_WIDTH_PX: u32 = 22;
 pub const DEFAULT_HOVER_OPEN_DELAY_MS: u64 = 180;
-pub const DEFAULT_HOVER_CLOSE_DELAY_MS: u64 = 320;
+pub const DEFAULT_HOVER_CLOSE_DELAY_MS: u64 = 100;
 pub const DEFAULT_HOTZONE_WIDTH_PX: u32 = 36;
 pub const DEFAULT_DEBUG_SHOW_HOTZONE: u8 = 0;
 pub const DEFAULT_SAVE_SHORTCUT_MODE: SaveShortcutMode = SaveShortcutMode::CtrlEnterSave;
@@ -23,6 +23,7 @@ pub const DEFAULT_CUSTOM_TEXT_COLOR: &str = "#333333";
 pub const DEFAULT_CUSTOM_ACCENT_COLOR: &str = "#3EB4BF";
 pub const DEFAULT_TARGET_ID: &str = "default";
 pub const DEFAULT_TARGET_NICKNAME: &str = "Fleeting";
+pub const DEFAULT_NOTE_TEMPLATE: &str = "> [!fleeting]+ {{timestamp}}\n>\n{{text.callout}}";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -122,6 +123,8 @@ pub struct AppConfig {
     pub targets: Vec<MarkdownTarget>,
     #[serde(default = "default_target_id")]
     pub active_target_id: String,
+    #[serde(default = "default_note_template")]
+    pub note_template: String,
     pub theme_mode: ThemeMode,
 }
 
@@ -179,6 +182,9 @@ pub fn load_app_config<R: Runtime>(app: &AppHandle<R>) -> Result<AppConfig, Stri
         config.save_shortcut_font_size_px = DEFAULT_SAVE_SHORTCUT_FONT_SIZE_PX;
     }
     normalize_custom_theme(&mut config.custom_theme);
+    if config.note_template.trim().is_empty() {
+        config.note_template = DEFAULT_NOTE_TEMPLATE.into();
+    }
 
     Ok(config)
 }
@@ -272,6 +278,7 @@ pub fn default_app_config<R: Runtime>(app: &AppHandle<R>) -> AppConfig {
             path: default_target_file_path(app).unwrap_or_else(|_| DEFAULT_TARGET_FILE_NAME.into()),
         }],
         active_target_id: DEFAULT_TARGET_ID.into(),
+        note_template: DEFAULT_NOTE_TEMPLATE.into(),
         theme_mode: ThemeMode::default(),
     }
 }
@@ -341,6 +348,10 @@ fn default_target_id() -> String {
 
 fn default_target_nickname() -> String {
     DEFAULT_TARGET_NICKNAME.into()
+}
+
+fn default_note_template() -> String {
+    DEFAULT_NOTE_TEMPLATE.into()
 }
 
 fn default_custom_window_color() -> String {
@@ -524,6 +535,22 @@ Each item has:
 
 ## activeTargetId
 The currently selected target id. Clicking a target in the main capture window updates this field.
+
+## noteTemplate
+Controls the markdown block written for each saved note.
+
+Supported placeholders:
+- `{{timestamp}}`: save time, formatted as `yyyy-mm-dd hh:mm`.
+- `{{text}}`: raw multi-line note text.
+- `{{text.callout}}`: note text converted into safe Obsidian callout lines.
+
+Default:
+
+```md
+> [!fleeting]+ {{timestamp}}
+>
+{{text.callout}}
+```
 
 ## hotkey
 The global hotkey that shows or hides the capture window.

@@ -26,6 +26,10 @@ const defaultCustomTheme: CustomTheme = {
   accentColor: '#3EB4BF',
 }
 
+const defaultNoteTemplate = `> [!fleeting]+ {{timestamp}}
+>
+{{text.callout}}`
+
 function SettingsApp() {
   const [prefersDark, setPrefersDark] = useState(() =>
     window.matchMedia('(prefers-color-scheme: dark)').matches,
@@ -38,6 +42,8 @@ function SettingsApp() {
   const [hotkey, setHotkey] = useState('')
   const [hotkeyInput, setHotkeyInput] = useState('')
   const [saveShortcutMode, setSaveShortcutMode] = useState<SaveShortcutMode>('ctrl-enter-save')
+  const [noteTemplate, setNoteTemplate] = useState(defaultNoteTemplate)
+  const [noteTemplateInput, setNoteTemplateInput] = useState(defaultNoteTemplate)
   const [customThemeDraft, setCustomThemeDraft] = useState<CustomTheme>(defaultCustomTheme)
   const [savedCustomTheme, setSavedCustomTheme] = useState<CustomTheme>(defaultCustomTheme)
   const [draggedTargetId, setDraggedTargetId] = useState('')
@@ -45,6 +51,7 @@ function SettingsApp() {
   const [isSavingTargets, setIsSavingTargets] = useState(false)
   const [isSavingHotkey, setIsSavingHotkey] = useState(false)
   const [isSavingSaveShortcutMode, setIsSavingSaveShortcutMode] = useState(false)
+  const [isSavingNoteTemplate, setIsSavingNoteTemplate] = useState(false)
   const [isSavingCustomTheme, setIsSavingCustomTheme] = useState(false)
   const [settingsFeedback, setSettingsFeedback] = useState('')
   const [settingsFeedbackTone, setSettingsFeedbackTone] = useState<FeedbackTone>('normal')
@@ -74,6 +81,8 @@ function SettingsApp() {
           setHotkey(config.hotkey)
           setHotkeyInput(config.hotkey)
           setSaveShortcutMode(config.saveShortcutMode)
+          setNoteTemplate(config.noteTemplate)
+          setNoteTemplateInput(config.noteTemplate)
           setCustomThemeDraft(config.customTheme)
           setSavedCustomTheme(config.customTheme)
         }
@@ -374,6 +383,39 @@ function SettingsApp() {
     }
   }
 
+  const handleSaveNoteTemplate = async () => {
+    setIsSavingNoteTemplate(true)
+    setSettingsFeedback('')
+    setSettingsFeedbackTone('normal')
+
+    try {
+      const config = await invoke<AppConfig>('set_note_template', {
+        noteTemplate: noteTemplateInput,
+      })
+      setNoteTemplate(config.noteTemplate)
+      setNoteTemplateInput(config.noteTemplate)
+      setSettingsFeedback('Note template updated.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setSettingsFeedback(message)
+      setSettingsFeedbackTone('error')
+    } finally {
+      setIsSavingNoteTemplate(false)
+    }
+  }
+
+  const handleCancelNoteTemplate = () => {
+    setNoteTemplateInput(noteTemplate)
+    setSettingsFeedback('')
+    setSettingsFeedbackTone('normal')
+  }
+
+  const handleResetNoteTemplate = () => {
+    setNoteTemplateInput(defaultNoteTemplate)
+    setSettingsFeedback('')
+    setSettingsFeedbackTone('normal')
+  }
+
   const handleCustomThemeDraftChange = (nextCustomTheme: CustomTheme) => {
     setCustomThemeDraft(nextCustomTheme)
     if (themeMode === 'custom') {
@@ -572,6 +614,38 @@ function SettingsApp() {
                 )}
               </div>
             ) : null}
+          </div>
+
+          <div className="settings-section">
+            <div className="settings-label-row">
+              <span className="settings-label">Note Template</span>
+              <span className="settings-value">Markdown</span>
+            </div>
+            <textarea
+              className="settings-input note-template-input"
+              value={noteTemplateInput}
+              onChange={(event) => setNoteTemplateInput(event.target.value)}
+              spellCheck={false}
+            />
+            <p className="settings-inline-value">
+              Placeholders: {'{{timestamp}}'}, {'{{text}}'}, {'{{text.callout}}'}.
+            </p>
+            <div className="settings-actions">
+              <button
+                className="settings-save-button"
+                type="button"
+                onClick={handleSaveNoteTemplate}
+                disabled={isSavingNoteTemplate}
+              >
+                {isSavingNoteTemplate ? 'Saving Template' : 'Save Template'}
+              </button>
+              <button className="settings-save-button is-secondary" type="button" onClick={handleResetNoteTemplate}>
+                Default
+              </button>
+              <button className="settings-save-button is-danger" type="button" onClick={handleCancelNoteTemplate}>
+                Cancel
+              </button>
+            </div>
           </div>
 
           <div className="settings-section">

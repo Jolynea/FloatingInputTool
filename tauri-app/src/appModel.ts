@@ -34,6 +34,7 @@ export type AppConfig = {
   saveShortcutTextColor: string
   saveShortcutFontSizePx: number
   customTheme: CustomTheme
+  noteTemplate: string
 }
 
 export type HotkeyUpdateResponse = {

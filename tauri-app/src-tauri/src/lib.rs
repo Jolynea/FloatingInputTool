@@ -3,7 +3,7 @@ mod config;
 use config::{
     default_app_config, load_app_config, normalize_targets, sanitize_custom_theme,
     sanitize_targets, save_app_config, AppConfig, CustomTheme, MarkdownTarget, SaveShortcutMode,
-    ThemeMode, DEFAULT_HOTKEY,
+    ThemeMode, DEFAULT_HOTKEY, DEFAULT_NOTE_TEMPLATE,
 };
 use std::sync::Mutex;
 use std::{fs, path::Path};
@@ -322,6 +322,29 @@ fn set_save_shortcut_mode(
 }
 
 #[tauri::command]
+fn set_note_template(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    note_template: String,
+) -> Result<AppConfig, String> {
+    let mut config = state
+        .config
+        .lock()
+        .map_err(|error| format!("failed to lock app state: {error}"))?;
+
+    config.note_template = sanitize_note_template(&note_template);
+    save_app_config(&app, &config)?;
+
+    let next_config = config.clone();
+    drop(config);
+
+    app.emit(EVENT_APP_CONFIG_CHANGED, next_config.clone())
+        .map_err(|error| format!("failed to emit app config change: {error}"))?;
+
+    Ok(next_config)
+}
+
+#[tauri::command]
 fn save_note(state: State<'_, AppState>, note_text: String) -> Result<(), String> {
     if note_text.trim().is_empty() {
         return Err(String::from("note content cannot be empty"));
@@ -334,7 +357,7 @@ fn save_note(state: State<'_, AppState>, note_text: String) -> Result<(), String
         .clone();
 
     let target_file_path = active_target_file_path(&config);
-    let note_block = format_note_block(&note_text);
+    let note_block = format_note_block(&note_text, &config.note_template);
     prepend_to_file(&target_file_path, &note_block)
 }
 
@@ -1338,24 +1361,49 @@ impl DockSide {
     }
 }
 
-fn format_note_block(note_text: &str) -> String {
+fn sanitize_note_template(note_template: &str) -> String {
+    let normalized = note_template.replace("\r\n", "\n").replace('\r', "\n");
+    let trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        DEFAULT_NOTE_TEMPLATE.into()
+    } else {
+        trimmed.into()
+    }
+}
+
+fn format_note_block(note_text: &str, note_template: &str) -> String {
     let normalized_text = note_text.replace("\r\n", "\n").replace('\r', "\n");
     let trimmed_text = normalized_text.trim_end_matches('\n');
     let timestamp = current_timestamp_string();
+    let template = sanitize_note_template(note_template);
+    let callout_text = format_callout_text(trimmed_text);
 
-    let mut note_block = format!("> [!fleeting] {timestamp}\r\n");
-    for line in trimmed_text.split('\n') {
+    let rendered = template
+        .replace("{{timestamp}}", &timestamp)
+        .replace("{{text.callout}}", &callout_text)
+        .replace("{{text}}", trimmed_text);
+
+    normalize_note_block_line_endings(&rendered)
+}
+
+fn format_callout_text(note_text: &str) -> String {
+    let mut callout_text = String::new();
+    for line in note_text.split('\n') {
         if line.is_empty() {
-            note_block.push_str(">\r\n");
+            callout_text.push('>');
         } else {
-            note_block.push_str("> ");
-            note_block.push_str(line);
-            note_block.push_str("\r\n");
+            callout_text.push_str("> ");
+            callout_text.push_str(line);
         }
+        callout_text.push('\n');
     }
-    note_block.push_str("\r\n");
+    callout_text.trim_end_matches('\n').into()
+}
 
-    note_block
+fn normalize_note_block_line_endings(note_block: &str) -> String {
+    let normalized = note_block.replace("\r\n", "\n").replace('\r', "\n");
+    let trimmed = normalized.trim_matches('\n');
+    format!("{}\r\n\r\n", trimmed.replace('\n', "\r\n"))
 }
 
 fn prepend_to_file(target_file_path: &str, note_block: &str) -> Result<(), String> {
@@ -1469,6 +1517,7 @@ pub fn run() {
             set_markdown_targets,
             set_hotkey,
             set_save_shortcut_mode,
+            set_note_template,
             set_custom_theme,
             save_note,
             begin_manual_window_drag,
