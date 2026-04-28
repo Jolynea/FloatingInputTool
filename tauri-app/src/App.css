@@ -21,6 +21,11 @@
   backdrop-filter: blur(44px) saturate(165%);
   -webkit-backdrop-filter: blur(44px) saturate(165%);
   display: grid;
+  grid-template-areas:
+    "header"
+    "targets"
+    "editor"
+    "footer";
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 0;
   overflow: hidden;
@@ -132,6 +137,7 @@
 }
 
 .window-header {
+  grid-area: header;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -166,6 +172,7 @@
 }
 
 .target-switcher {
+  grid-area: targets;
   display: flex;
   gap: 7px;
   overflow-x: auto;
@@ -258,6 +265,7 @@
 }
 
 .editor-shell {
+  grid-area: editor;
   border-radius: 17px;
   min-height: 0;
   padding: 0;
@@ -331,6 +339,7 @@
 }
 
 .window-footer {
+  grid-area: footer;
   display: flex;
   align-items: center;
   justify-content: space-between;
