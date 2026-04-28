@@ -102,3 +102,12 @@
 - Replaced manual hotkey typing with a recorder-style input that captures pressed key combinations into accelerator strings.
 - Expanded the capability config so the new Settings window can start dragging and close itself.
 - Re-verified the updated frontend with `npm run build` and the Rust shell with `cargo check`.
+
+### Session 14
+
+- Extended the persisted Tauri config with side-hide fields for dock thresholds, handle width, hover delays, hotzone width, and the `debugShowHotzone` flag.
+- Added Rust-side main-window runtime state so the app can dock to the left or right edge, restore from dock, and re-dock without losing the current draft.
+- Changed `Hide` in the main capture UI to call the new dock-or-hide command instead of always doing a normal hide.
+- Added docked-mode frontend rendering for the visible side handle plus hover-driven expand and delayed re-hide behavior.
+- Added a debug hotzone overlay that appears only when `debugShowHotzone = 1`.
+- Re-verified the updated frontend with `npm run build` and the Rust shell with `cargo check`.

@@ -6,7 +6,7 @@ Build the first working version of FloatingInputTool as a lightweight AutoHotkey
 
 ## Current Phase
 
-Phase 12 - Rework Settings into a native modal Tauri window
+Phase 13 - Implement single-window side hide in Tauri
 
 ## Phases
 
@@ -24,6 +24,7 @@ Phase 12 - Rework Settings into a native modal Tauri window
 | 10 | in_progress | Preserve the AutoHotkey prototype and move the main UI implementation to Tauri |
 | 11 | in_progress | Scaffold Tauri app, restore the approved visual shell, and wire persistent theme switching |
 | 12 | in_progress | Split Settings into a dedicated modal window and add shortcut recording |
+| 13 | in_progress | Implement single-window side hide with hover-based expand and re-hide |
 
 ## Decisions
 
@@ -41,6 +42,7 @@ Phase 12 - Rework Settings into a native modal Tauri window
 - Final visual fidelity will be implemented in Tauri/WebView so the app can match the approved mockup.
 - The future side-hide behavior should be implemented directly in the Tauri window layer.
 - The initial Tauri scaffold lives in `tauri-app/` to keep the migration isolated from the preserved AHK prototype.
+- Side hide will use a single-window docking model rather than a second functional capture window.
 
 ## Risks
 
@@ -52,6 +54,7 @@ Phase 12 - Rework Settings into a native modal Tauri window
 - Tauri migration adds setup and packaging complexity compared with the AHK prototype.
 - Tray, global hotkey, and filesystem integrations still need to be fully ported from the AHK prototype into Tauri.
 - The new multi-window flow must re-enable the main window reliably if the Settings window closes through any path.
+- Side-hide monitor detection and dock geometry must fail safely so the main window never becomes stranded off-screen.
 
 ## Errors Encountered
 
@@ -62,6 +65,6 @@ Phase 12 - Rework Settings into a native modal Tauri window
 
 ## Next Actions
 
-1. Manually verify the new native Settings window, especially modal blocking and hotkey recording behavior.
-2. Polish any settings-window edge cases uncovered by runtime testing.
-3. Implement side-hide behavior in the Tauri window layer.
+1. Manually verify left/right docking, hover expand, delayed re-hide, and tray/hotkey restore behavior.
+2. Tune the dock handle shape and hotzone values based on real-machine feel.
+3. Add the planned `debug1.json` override path so visual tuning can happen without editing the main stylesheet directly.

@@ -3,8 +3,15 @@ use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Manager, Runtime};
 
 const CONFIG_FILE_NAME: &str = "config.json";
-const DEFAULT_TARGET_FILE_NAME: &str = "闂康娓呭崟.md";
+const DEFAULT_TARGET_FILE_NAME: &str = "Fleeting Note.md";
 pub const DEFAULT_HOTKEY: &str = "Ctrl+Alt+Space";
+pub const DEFAULT_SIDE_HIDE_ENABLED: u8 = 1;
+pub const DEFAULT_EDGE_SNAP_THRESHOLD_PX: u32 = 36;
+pub const DEFAULT_VISIBLE_HANDLE_WIDTH_PX: u32 = 22;
+pub const DEFAULT_HOVER_OPEN_DELAY_MS: u64 = 180;
+pub const DEFAULT_HOVER_CLOSE_DELAY_MS: u64 = 320;
+pub const DEFAULT_HOTZONE_WIDTH_PX: u32 = 36;
+pub const DEFAULT_DEBUG_SHOW_HOTZONE: u8 = 0;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -22,6 +29,20 @@ pub struct AppConfig {
   pub target_file_path: String,
   #[serde(default = "default_hotkey")]
   pub hotkey: String,
+  #[serde(default = "default_side_hide_enabled")]
+  pub side_hide_enabled: u8,
+  #[serde(default = "default_edge_snap_threshold_px")]
+  pub edge_snap_threshold_px: u32,
+  #[serde(default = "default_visible_handle_width_px")]
+  pub visible_handle_width_px: u32,
+  #[serde(default = "default_hover_open_delay_ms")]
+  pub hover_open_delay_ms: u64,
+  #[serde(default = "default_hover_close_delay_ms")]
+  pub hover_close_delay_ms: u64,
+  #[serde(default = "default_hotzone_width_px")]
+  pub hotzone_width_px: u32,
+  #[serde(default = "default_debug_show_hotzone")]
+  pub debug_show_hotzone: u8,
   pub theme_mode: ThemeMode,
 }
 
@@ -42,6 +63,21 @@ pub fn load_app_config<R: Runtime>(app: &AppHandle<R>) -> Result<AppConfig, Stri
   }
   if config.hotkey.trim().is_empty() {
     config.hotkey = DEFAULT_HOTKEY.into();
+  }
+  if config.edge_snap_threshold_px == 0 {
+    config.edge_snap_threshold_px = DEFAULT_EDGE_SNAP_THRESHOLD_PX;
+  }
+  if config.visible_handle_width_px == 0 {
+    config.visible_handle_width_px = DEFAULT_VISIBLE_HANDLE_WIDTH_PX;
+  }
+  if config.hover_open_delay_ms == 0 {
+    config.hover_open_delay_ms = DEFAULT_HOVER_OPEN_DELAY_MS;
+  }
+  if config.hover_close_delay_ms == 0 {
+    config.hover_close_delay_ms = DEFAULT_HOVER_CLOSE_DELAY_MS;
+  }
+  if config.hotzone_width_px == 0 {
+    config.hotzone_width_px = DEFAULT_HOTZONE_WIDTH_PX;
   }
 
   Ok(config)
@@ -75,6 +111,13 @@ pub fn default_app_config<R: Runtime>(app: &AppHandle<R>) -> AppConfig {
   AppConfig {
     target_file_path: default_target_file_path(app).unwrap_or_else(|_| DEFAULT_TARGET_FILE_NAME.into()),
     hotkey: DEFAULT_HOTKEY.into(),
+    side_hide_enabled: DEFAULT_SIDE_HIDE_ENABLED,
+    edge_snap_threshold_px: DEFAULT_EDGE_SNAP_THRESHOLD_PX,
+    visible_handle_width_px: DEFAULT_VISIBLE_HANDLE_WIDTH_PX,
+    hover_open_delay_ms: DEFAULT_HOVER_OPEN_DELAY_MS,
+    hover_close_delay_ms: DEFAULT_HOVER_CLOSE_DELAY_MS,
+    hotzone_width_px: DEFAULT_HOTZONE_WIDTH_PX,
+    debug_show_hotzone: DEFAULT_DEBUG_SHOW_HOTZONE,
     theme_mode: ThemeMode::default(),
   }
 }
@@ -89,4 +132,32 @@ fn default_target_file_path<R: Runtime>(app: &AppHandle<R>) -> Result<String, St
 
 fn default_hotkey() -> String {
   DEFAULT_HOTKEY.into()
+}
+
+fn default_side_hide_enabled() -> u8 {
+  DEFAULT_SIDE_HIDE_ENABLED
+}
+
+fn default_edge_snap_threshold_px() -> u32 {
+  DEFAULT_EDGE_SNAP_THRESHOLD_PX
+}
+
+fn default_visible_handle_width_px() -> u32 {
+  DEFAULT_VISIBLE_HANDLE_WIDTH_PX
+}
+
+fn default_hover_open_delay_ms() -> u64 {
+  DEFAULT_HOVER_OPEN_DELAY_MS
+}
+
+fn default_hover_close_delay_ms() -> u64 {
+  DEFAULT_HOVER_CLOSE_DELAY_MS
+}
+
+fn default_hotzone_width_px() -> u32 {
+  DEFAULT_HOTZONE_WIDTH_PX
+}
+
+fn default_debug_show_hotzone() -> u8 {
+  DEFAULT_DEBUG_SHOW_HOTZONE
 }

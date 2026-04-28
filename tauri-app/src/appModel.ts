@@ -6,6 +6,13 @@ export type AppConfig = {
   themeMode: ThemeMode
   targetFilePath: string
   hotkey: string
+  sideHideEnabled: number
+  edgeSnapThresholdPx: number
+  visibleHandleWidthPx: number
+  hoverOpenDelayMs: number
+  hoverCloseDelayMs: number
+  hotzoneWidthPx: number
+  debugShowHotzone: number
 }
 
 export type HotkeyUpdateResponse = {
@@ -15,6 +22,13 @@ export type HotkeyUpdateResponse = {
 
 export type ThemeModeChangedPayload = {
   themeMode: ThemeMode
+}
+
+export type MainWindowMode = 'normal' | 'docked-left' | 'docked-right' | 'expanded-from-dock'
+
+export type MainWindowModeChangedPayload = {
+  mode: MainWindowMode
+  dockSide?: 'left' | 'right' | null
 }
 
 export const themeOptions: Array<{ value: ThemeMode; label: string; note: string }> = [
