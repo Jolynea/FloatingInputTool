@@ -25,6 +25,7 @@ Phase 13 - Implement single-window side hide in Tauri
 | 11 | in_progress | Scaffold Tauri app, restore the approved visual shell, and wire persistent theme switching |
 | 12 | in_progress | Split Settings into a dedicated modal window and add shortcut recording |
 | 13 | in_progress | Implement single-window side hide with hover-based expand and re-hide |
+| 14 | in_progress | Polish packaging behavior, tray-only presence, side-hide stability, and dock animation |
 
 ## Decisions
 
@@ -43,6 +44,7 @@ Phase 13 - Implement single-window side hide in Tauri
 - The future side-hide behavior should be implemented directly in the Tauri window layer.
 - The initial Tauri scaffold lives in `tauri-app/` to keep the migration isolated from the preserved AHK prototype.
 - Side hide will use a single-window docking model rather than a second functional capture window.
+- Main and settings windows should stay out of the Windows taskbar; the tray icon is the app's persistent presence.
 
 ## Risks
 
@@ -65,6 +67,6 @@ Phase 13 - Implement single-window side hide in Tauri
 
 ## Next Actions
 
-1. Manually verify left/right docking, hover expand, delayed re-hide, and tray/hotkey restore behavior.
-2. Tune the dock handle shape and hotzone values based on real-machine feel.
-3. Add the planned `debug1.json` override path so visual tuning can happen without editing the main stylesheet directly.
+1. Manually verify that taskbar buttons are hidden while the tray icon remains usable.
+2. Manually verify first-click typing after side-handle expansion.
+3. Tune side-hide animation duration if the current `160ms` movement feels too slow or too fast.

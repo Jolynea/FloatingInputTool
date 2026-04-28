@@ -39,5 +39,8 @@
 - Theme switching is now best owned by Tauri itself: Rust persists the selected mode, updates tray menu checks, and emits frontend events so the React shell stays in sync.
 - The first Tauri settings surface can stay lightweight for now; it only needs to expose the decisions that matter for continued visual review, starting with theme mode.
 - Rust was installed via the official `rustup-init.exe` installer because `winget` package routes were unreliable in this environment.
+- Tauri's `skipTaskbar` window option hides a window from the Windows taskbar while keeping the tray icon available.
+- The redock guard depends on refs rather than React state; focus handlers must update those refs synchronously or first-click timing can still collapse the expanded window.
+- Side-hide movement was previously a direct `set_size`/`set_position` jump. Native bounds interpolation gives a smoother transition without changing the React visual shell.
 - Approved design spec path:
   [2026-04-21-floating-input-tool-design.md](D:/Claude/Project/FloatingInputTool/docs/superpowers/specs/2026-04-21-floating-input-tool-design.md)

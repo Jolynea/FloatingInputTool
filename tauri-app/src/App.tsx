@@ -618,11 +618,14 @@ function App() {
                 value={draft}
                 placeholder="Capture your fleeting thoughts"
                 onFocus={() => {
+                  isEditorFocusedRef.current = true
+                  cursorInsideWindowRef.current = true
                   setIsEditorFocused(true)
                   sideHideDebugLog('editor focus')
                   clearCloseTimer()
                 }}
                 onBlur={() => {
+                  isEditorFocusedRef.current = false
                   setIsEditorFocused(false)
                   sideHideDebugLog('editor blur', {
                     mainWindowMode,

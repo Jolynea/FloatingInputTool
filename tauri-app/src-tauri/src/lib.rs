@@ -36,6 +36,9 @@ const EVENT_THEME_MODE_CHANGED: &str = "theme-mode-changed";
 const EVENT_APP_CONFIG_CHANGED: &str = "app-config-changed";
 const EVENT_MAIN_WINDOW_MODE_CHANGED: &str = "main-window-mode-changed";
 const AUTO_DOCK_SETTLE_MS: u64 = 180;
+const WINDOW_BOUNDS_ANIMATION_MS: u64 = 120;
+const WINDOW_BOUNDS_ANIMATION_STEPS: u32 = 10;
+const WINDOW_BOUNDS_ANIMATION_PAINT_SETTLE_MS: u64 = 24;
 
 struct ThemeMenuItems {
     follow_system: CheckMenuItem<Wry>,
@@ -457,8 +460,10 @@ fn hide_or_dock_main_window(app: AppHandle, state: State<'_, AppState>) -> Resul
     if let Some((dock_side, docked_bounds)) =
         compute_docked_bounds(&window, &current_bounds, &config)?
     {
-        apply_window_bounds(&window, docked_bounds)?;
+        suppress_auto_dock_for(&state, WINDOW_BOUNDS_ANIMATION_MS + AUTO_DOCK_SETTLE_MS)?;
+        apply_window_bounds_animated(&window, current_bounds, docked_bounds)?;
         set_window_resizable(&window, false)?;
+        settle_window_bounds_animation();
         update_main_window_runtime_state(
             &app,
             &state,
@@ -508,15 +513,22 @@ fn restore_docked_main_window(app: AppHandle, state: State<'_, AppState>) -> Res
         return Ok(());
     }
 
-    apply_window_bounds(&window, normal_bounds)?;
+    suppress_auto_dock_for(
+        &state,
+        WINDOW_BOUNDS_ANIMATION_MS + (AUTO_DOCK_SETTLE_MS * 3),
+    )?;
+    update_main_window_runtime_state(
+        &app,
+        &state,
+        MainWindowRuntimeState {
+            mode: MainWindowMode::ExpandedFromDock,
+            dock_side: runtime_state.dock_side,
+            normal_bounds: Some(normal_bounds),
+            docked_bounds: runtime_state.docked_bounds,
+        },
+    )?;
+    apply_window_bounds_animated(&window, capture_window_bounds(&window)?, normal_bounds)?;
     set_window_resizable(&window, true)?;
-    {
-        let mut suppressed_until = state
-            .auto_dock_suppressed_until_ms
-            .lock()
-            .map_err(|error| format!("failed to lock auto dock suppression state: {error}"))?;
-        *suppressed_until = current_time_millis() + (AUTO_DOCK_SETTLE_MS as u128 * 3);
-    }
     log::info!(
         "[side-hide] restore_docked_main_window normal_bounds=({}, {}, {}, {}) mode_before={:?}",
         normal_bounds.x,
@@ -532,16 +544,7 @@ fn restore_docked_main_window(app: AppHandle, state: State<'_, AppState>) -> Res
         .set_focus()
         .map_err(|error| format!("failed to focus restored main window: {error}"))?;
 
-    update_main_window_runtime_state(
-        &app,
-        &state,
-        MainWindowRuntimeState {
-            mode: MainWindowMode::ExpandedFromDock,
-            dock_side: runtime_state.dock_side,
-            normal_bounds: Some(normal_bounds),
-            docked_bounds: runtime_state.docked_bounds,
-        },
-    )
+    Ok(())
 }
 
 #[tauri::command]
@@ -581,8 +584,10 @@ fn redock_main_window(app: AppHandle, state: State<'_, AppState>) -> Result<(), 
             docked_bounds.width,
             docked_bounds.height
         );
-        apply_window_bounds(&window, docked_bounds)?;
+        suppress_auto_dock_for(&state, WINDOW_BOUNDS_ANIMATION_MS + AUTO_DOCK_SETTLE_MS)?;
+        apply_window_bounds_animated(&window, current_bounds, docked_bounds)?;
         set_window_resizable(&window, false)?;
+        settle_window_bounds_animation();
         update_main_window_runtime_state(
             &app,
             &state,
@@ -738,6 +743,7 @@ fn build_settings_window<R: Runtime>(
     .transparent(true)
     .shadow(false)
     .always_on_top(true)
+    .skip_taskbar(true)
     .focused(true)
     .center()
     .build()
@@ -1049,8 +1055,10 @@ fn sync_main_window_mode_after_move<R: Runtime>(app: &AppHandle<R>) -> Result<()
             if let Some((dock_side, docked_bounds)) =
                 compute_docked_bounds(&window, &current_bounds, &config)?
             {
-                apply_window_bounds(&window, docked_bounds)?;
+                suppress_auto_dock_for(&state, WINDOW_BOUNDS_ANIMATION_MS + AUTO_DOCK_SETTLE_MS)?;
+                apply_window_bounds_animated(&window, current_bounds, docked_bounds)?;
                 set_window_resizable(&window, false)?;
+                settle_window_bounds_animation();
                 update_main_window_runtime_state(
                     app,
                     &state,
@@ -1069,8 +1077,10 @@ fn sync_main_window_mode_after_move<R: Runtime>(app: &AppHandle<R>) -> Result<()
             if let Some((dock_side, docked_bounds)) =
                 compute_docked_bounds(&window, &current_bounds, &config)?
             {
-                apply_window_bounds(&window, docked_bounds)?;
+                suppress_auto_dock_for(&state, WINDOW_BOUNDS_ANIMATION_MS + AUTO_DOCK_SETTLE_MS)?;
+                apply_window_bounds_animated(&window, current_bounds, docked_bounds)?;
                 set_window_resizable(&window, false)?;
+                settle_window_bounds_animation();
                 update_main_window_runtime_state(
                     app,
                     &state,
@@ -1215,6 +1225,62 @@ fn apply_window_bounds<R: Runtime>(
     window
         .set_position(PhysicalPosition::new(bounds.x, bounds.y))
         .map_err(|error| format!("failed to set window position: {error}"))
+}
+
+fn apply_window_bounds_animated<R: Runtime>(
+    window: &WebviewWindow<R>,
+    from: StoredWindowBounds,
+    to: StoredWindowBounds,
+) -> Result<(), String> {
+    if from.x == to.x && from.y == to.y && from.width == to.width && from.height == to.height {
+        return apply_window_bounds(window, to);
+    }
+
+    let step_duration = Duration::from_millis(
+        (WINDOW_BOUNDS_ANIMATION_MS / WINDOW_BOUNDS_ANIMATION_STEPS as u64).max(1),
+    );
+
+    for step in 1..=WINDOW_BOUNDS_ANIMATION_STEPS {
+        let progress = step as f64 / WINDOW_BOUNDS_ANIMATION_STEPS as f64;
+        let eased = 1.0 - (1.0 - progress).powi(3);
+        let next_bounds = StoredWindowBounds {
+            x: lerp_i32(from.x, to.x, eased),
+            y: lerp_i32(from.y, to.y, eased),
+            width: lerp_u32(from.width, to.width, eased),
+            height: lerp_u32(from.height, to.height, eased),
+        };
+
+        apply_window_bounds(window, next_bounds)?;
+
+        if step < WINDOW_BOUNDS_ANIMATION_STEPS {
+            thread::sleep(step_duration);
+        }
+    }
+
+    Ok(())
+}
+
+fn lerp_i32(from: i32, to: i32, progress: f64) -> i32 {
+    (from as f64 + (to - from) as f64 * progress).round() as i32
+}
+
+fn lerp_u32(from: u32, to: u32, progress: f64) -> u32 {
+    (from as f64 + (to as f64 - from as f64) * progress)
+        .round()
+        .max(1.0) as u32
+}
+
+fn suppress_auto_dock_for(state: &State<'_, AppState>, duration_ms: u64) -> Result<(), String> {
+    let mut suppressed_until = state
+        .auto_dock_suppressed_until_ms
+        .lock()
+        .map_err(|error| format!("failed to lock auto dock suppression state: {error}"))?;
+    *suppressed_until = current_time_millis() + duration_ms as u128;
+    Ok(())
+}
+
+fn settle_window_bounds_animation() {
+    thread::sleep(Duration::from_millis(WINDOW_BOUNDS_ANIMATION_PAINT_SETTLE_MS));
 }
 
 fn set_window_resizable<R: Runtime>(

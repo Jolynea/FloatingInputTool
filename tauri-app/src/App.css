@@ -514,11 +514,37 @@
 .dock-shell-left .dock-handle {
   clip-path: polygon(0 0, 100% 4%, 100% 96%, 0 100%);
   border-radius: 16px 0 0 16px;
+  animation: dock-handle-left-enter 60ms ease-out both;
 }
 
 .dock-shell-right .dock-handle {
   clip-path: polygon(0 4%, 100% 0, 100% 100%, 0 96%);
   border-radius: 0 16px 16px 0;
+  animation: dock-handle-right-enter 60ms ease-out both;
+}
+
+@keyframes dock-handle-left-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes dock-handle-right-enter {
+  from {
+    opacity: 0;
+    transform: translateX(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .theme-white .dock-handle {

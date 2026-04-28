@@ -129,3 +129,13 @@
 - Added a configurable note template with `{{timestamp}}`, `{{text}}`, and `{{text.callout}}` placeholders.
 - Added a Settings section for editing, saving, canceling, and restoring the default note template.
 - Re-verified the frontend with `npm run build` and the Rust shell with `cargo check`.
+
+### Session 17
+
+- Fixed the main capture layout so `footer/save` no longer occupies the flexible editor row when there is only one markdown target.
+- Replaced the app icon source and regenerated the Tauri icon set.
+- Added `skipTaskbar` for the main window and `skip_taskbar(true)` for the Settings window so the app stays tray-first.
+- Fixed first-click collapse after side-handle expansion by synchronously updating the focus refs used by the redock guard.
+- Added a short eased bounds animation for dock, restore, and redock transitions.
+- Tuned side-hide animation to a `120ms` window slide plus a separate `60ms` dock-handle appearance.
+- Re-verified with `npm run build`, `cargo check`, and `npm run tauri:build`.
