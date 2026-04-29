@@ -42,5 +42,6 @@
 - Tauri's `skipTaskbar` window option hides a window from the Windows taskbar while keeping the tray icon available.
 - The redock guard depends on refs rather than React state; focus handlers must update those refs synchronously or first-click timing can still collapse the expanded window.
 - Side-hide movement was previously a direct `set_size`/`set_position` jump. Native bounds interpolation gives a smoother transition without changing the React visual shell.
+- Restore-from-dock should derive its horizontal target from the active dock side and monitor work area instead of trusting stale saved `normal_bounds.x`.
 - Approved design spec path:
   [2026-04-21-floating-input-tool-design.md](D:/Claude/Project/FloatingInputTool/docs/superpowers/specs/2026-04-21-floating-input-tool-design.md)

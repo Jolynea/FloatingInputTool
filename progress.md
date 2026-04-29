@@ -138,4 +138,5 @@
 - Fixed first-click collapse after side-handle expansion by synchronously updating the focus refs used by the redock guard.
 - Added a short eased bounds animation for dock, restore, and redock transitions.
 - Tuned side-hide animation to a `120ms` window slide plus a separate `60ms` dock-handle appearance.
+- Clamped restore-from-dock bounds to the screen interior so long-lived left/right docking cannot expand outward off-screen.
 - Re-verified with `npm run build`, `cargo check`, and `npm run tauri:build`.

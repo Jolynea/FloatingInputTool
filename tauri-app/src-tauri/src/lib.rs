@@ -505,13 +505,16 @@ fn restore_docked_main_window(app: AppHandle, state: State<'_, AppState>) -> Res
         .map_err(|error| format!("failed to lock main window state: {error}"))?
         .clone();
 
-    let Some(normal_bounds) = runtime_state.normal_bounds else {
+    let Some(saved_normal_bounds) = runtime_state.normal_bounds else {
         return Ok(());
     };
 
     if runtime_state.mode == MainWindowMode::Normal {
         return Ok(());
     }
+
+    let normal_bounds =
+        compute_restore_bounds(&window, saved_normal_bounds, runtime_state.dock_side)?;
 
     suppress_auto_dock_for(
         &state,
@@ -1351,6 +1354,43 @@ fn compute_docked_bounds<R: Runtime>(
             height: current_bounds.height,
         },
     )))
+}
+
+fn compute_restore_bounds<R: Runtime>(
+    window: &WebviewWindow<R>,
+    saved_bounds: StoredWindowBounds,
+    dock_side: Option<DockSide>,
+) -> Result<StoredWindowBounds, String> {
+    let Some(monitor) = window
+        .current_monitor()
+        .map_err(|error| format!("failed to resolve current monitor: {error}"))?
+    else {
+        return Ok(saved_bounds);
+    };
+
+    let work_area = monitor.work_area();
+    let work_left = work_area.position.x;
+    let work_top = work_area.position.y;
+    let work_right = work_left + work_area.size.width as i32;
+    let work_bottom = work_top + work_area.size.height as i32;
+    let max_y = (work_bottom - saved_bounds.height as i32).max(work_top);
+    let y = saved_bounds.y.clamp(work_top, max_y);
+
+    let x = match dock_side {
+        Some(DockSide::Left) => work_left,
+        Some(DockSide::Right) => (work_right - saved_bounds.width as i32).max(work_left),
+        None => {
+            let max_x = (work_right - saved_bounds.width as i32).max(work_left);
+            saved_bounds.x.clamp(work_left, max_x)
+        }
+    };
+
+    Ok(StoredWindowBounds {
+        x,
+        y,
+        width: saved_bounds.width,
+        height: saved_bounds.height,
+    })
 }
 
 fn effective_exposed_width(config: &AppConfig) -> u32 {
