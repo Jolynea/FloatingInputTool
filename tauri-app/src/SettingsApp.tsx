@@ -981,6 +981,11 @@ function SettingsApp() {
             {settingsFeedback}
           </div>
         ) : null}
+
+        <footer className="settings-footer" aria-label="Copyright">
+          <span>{text.copyrightLine}</span>
+          <span>{text.creatorLine}</span>
+        </footer>
       </section>
     </main>
   )

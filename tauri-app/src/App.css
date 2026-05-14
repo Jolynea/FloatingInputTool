@@ -1004,6 +1004,26 @@
   min-height: 18px;
 }
 
+.settings-footer {
+  display: grid;
+  gap: 2px;
+  font-size: 10px;
+  line-height: 1.35;
+  opacity: 0.72;
+}
+
+.theme-white .settings-footer {
+  color: #727481;
+}
+
+.theme-dark .settings-footer {
+  color: #aaa7b2;
+}
+
+.theme-custom .settings-footer {
+  color: color-mix(in srgb, var(--custom-text-color) 62%, transparent);
+}
+
 .theme-option-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));

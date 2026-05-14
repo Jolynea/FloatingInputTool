@@ -527,6 +527,11 @@ const CONFIG_HELP_CONTENT: &str = r#"# FloatingInputTool Config Reference
 
 This file explains the adjacent `config.json`. The app reads `config.json`; this help file is for manual editing reference only.
 
+## Copyright
+FloatingInputTool (c) 2026 chenyb. All rights reserved.
+
+Creator platform: Xiaohongshu @落雨返屋企 (210601284kk).
+
 ## themeMode
 Controls the active theme.
 

@@ -206,6 +206,8 @@ export const uiText = {
     saveShortcutUpdated: 'Save shortcut updated.',
     noteTemplateUpdated: 'Note template updated.',
     customThemeSaved: 'Custom theme saved.',
+    copyrightLine: 'FloatingInputTool © 2026 chenyb. All rights reserved.',
+    creatorLine: 'Creator: Xiaohongshu @落雨返屋企 (210601284kk)',
   },
   chinese: {
     appTitle: '闪念笔记',
@@ -264,5 +266,7 @@ export const uiText = {
     saveShortcutUpdated: '保存快捷键已更新。',
     noteTemplateUpdated: '记录模板已更新。',
     customThemeSaved: '自定义主题已保存。',
+    copyrightLine: 'FloatingInputTool © 2026 chenyb. 保留所有权利。',
+    creatorLine: '创作者：小红书 @落雨返屋企（210601284kk）',
   },
 } as const satisfies Record<LanguageMode, Record<string, string>>

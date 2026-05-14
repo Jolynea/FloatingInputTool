@@ -158,3 +158,11 @@
 - Added English/Chinese UI copy for the main capture window and Settings window.
 - Added a SimHei-first font stack for Chinese mode.
 - Re-verified with `npm run build` and `cargo check`.
+
+### Session 20
+
+- Read current Git identity: `chenyb <chenyb1348@gmail.com>`.
+- Added Settings footer ownership text for `chenyb` and Xiaohongshu `@落雨返屋企 (210601284kk)`.
+- Added ownership metadata to Tauri bundle config and Cargo package metadata.
+- Added copyright and creator attribution to generated `config.help.md`.
+- Re-verified with `npm run build`, `cargo check`, JSON config parsing, and `npm run tauri:build`.

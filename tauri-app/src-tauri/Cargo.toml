@@ -1,10 +1,10 @@
 [package]
 name = "app"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+description = "A lightweight floating capture tool for fleeting markdown notes."
+authors = ["chenyb <chenyb1348@gmail.com>"]
+license = "All rights reserved"
+repository = "https://github.com/Jolynea/FloatingInputTool"
 edition = "2021"
 rust-version = "1.77.2"
 

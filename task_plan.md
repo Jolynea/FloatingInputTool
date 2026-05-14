@@ -6,7 +6,7 @@ Build the first working version of FloatingInputTool as a lightweight AutoHotkey
 
 ## Current Phase
 
-Phase 16 - Add tray language switching
+Phase 17 - Add lightweight ownership watermarking
 
 ## Phases
 
@@ -28,6 +28,7 @@ Phase 16 - Add tray language switching
 | 14 | in_progress | Polish packaging behavior, tray-only presence, side-hide stability, and dock animation |
 | 15 | in_progress | Add configurable capture, hide, and next-target global hotkeys |
 | 16 | in_progress | Add tray-based English/Chinese UI language switching |
+| 17 | in_progress | Add visible and metadata ownership marks for shared builds |
 
 ## Decisions
 
@@ -49,6 +50,7 @@ Phase 16 - Add tray language switching
 - Main and settings windows should stay out of the Windows taskbar; the tray icon is the app's persistent presence.
 - Global shortcuts are action-based: Capture toggles/focuses input, Hide preserves the draft while hiding or docking, and Next Target cycles the active markdown target without touching the draft.
 - UI language is controlled from the tray menu and persisted as `languageMode`; Chinese mode uses a SimHei-first font stack in the web windows.
+- Ownership marking should be lightweight and non-invasive: Settings footer, generated config help, and package metadata only. Saved user notes should not contain watermarks.
 
 ## Risks
 
@@ -73,4 +75,4 @@ Phase 16 - Add tray language switching
 
 1. Manually verify that taskbar buttons are hidden while the tray icon remains usable.
 2. Manually verify first-click typing after side-handle expansion.
-3. Manually verify tray `Language / 语言` switches the main window and Settings text between English and Chinese.
+3. Manually verify the Settings footer and Windows installer/exe details show the expected ownership information.

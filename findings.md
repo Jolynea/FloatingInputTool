@@ -45,5 +45,6 @@
 - Restore-from-dock should derive its horizontal target from the active dock side and monitor work area instead of trusting stale saved `normal_bounds.x`.
 - Tauri global shortcut events expose the registered shortcut object; matching by its internal id is more reliable than comparing saved accelerator strings because display formatting can differ from user-entered config.
 - Language switching can stay lightweight for now: a persisted enum plus local UI copy tables is enough and avoids pulling in a full i18n framework.
+- Ownership watermarking should avoid modifying captured notes. Settings UI, generated help text, and Windows bundle metadata provide attribution without polluting user content.
 - Approved design spec path:
   [2026-04-21-floating-input-tool-design.md](D:/Claude/Project/FloatingInputTool/docs/superpowers/specs/2026-04-21-floating-input-tool-design.md)
