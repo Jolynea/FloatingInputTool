@@ -851,6 +851,18 @@
   caret-color: transparent;
 }
 
+.hotkey-list {
+  display: grid;
+  gap: 8px;
+}
+
+.hotkey-row {
+  display: grid;
+  grid-template-columns: 88px minmax(150px, 1fr) auto minmax(160px, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
 .hotkey-recorder.is-recording {
   box-shadow: 0 0 0 1px rgba(62, 180, 191, 0.34);
 }

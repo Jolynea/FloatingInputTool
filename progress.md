@@ -140,3 +140,12 @@
 - Tuned side-hide animation to a `120ms` window slide plus a separate `60ms` dock-handle appearance.
 - Clamped restore-from-dock bounds to the screen interior so long-lived left/right docking cannot expand outward off-screen.
 - Re-verified with `npm run build`, `cargo check`, and `npm run tauri:build`.
+
+### Session 18
+
+- Added configurable global hotkeys for Capture, Hide, and Next Target.
+- Changed Rust shortcut routing to match registered shortcut ids instead of display strings, so recorded accelerator text does not have to match the plugin's internal formatting.
+- Added Settings recorder rows for all three shortcut actions.
+- Added a main-window focus event so hotkey summon focuses the textarea immediately.
+- Added next-target cycling that updates the active markdown target without changing the current draft.
+- Re-verified with `npm run build` and `cargo check`.

@@ -18,6 +18,7 @@ import type {
 import { saveShortcutOptions, themeOptions } from './appModel'
 
 const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta'])
+type HotkeyField = 'capture' | 'hide' | 'next-target'
 
 const defaultCustomTheme: CustomTheme = {
   windowColor: '#F8F8FF',
@@ -41,6 +42,10 @@ function SettingsApp() {
   const [isEditingTargets, setIsEditingTargets] = useState(false)
   const [hotkey, setHotkey] = useState('')
   const [hotkeyInput, setHotkeyInput] = useState('')
+  const [hideHotkey, setHideHotkey] = useState('')
+  const [hideHotkeyInput, setHideHotkeyInput] = useState('')
+  const [nextTargetHotkey, setNextTargetHotkey] = useState('')
+  const [nextTargetHotkeyInput, setNextTargetHotkeyInput] = useState('')
   const [saveShortcutMode, setSaveShortcutMode] = useState<SaveShortcutMode>('ctrl-enter-save')
   const [noteTemplate, setNoteTemplate] = useState(defaultNoteTemplate)
   const [noteTemplateInput, setNoteTemplateInput] = useState(defaultNoteTemplate)
@@ -50,12 +55,14 @@ function SettingsApp() {
   const [isSavingTheme, setIsSavingTheme] = useState(false)
   const [isSavingTargets, setIsSavingTargets] = useState(false)
   const [isSavingHotkey, setIsSavingHotkey] = useState(false)
+  const [isSavingHideHotkey, setIsSavingHideHotkey] = useState(false)
+  const [isSavingNextTargetHotkey, setIsSavingNextTargetHotkey] = useState(false)
   const [isSavingSaveShortcutMode, setIsSavingSaveShortcutMode] = useState(false)
   const [isSavingNoteTemplate, setIsSavingNoteTemplate] = useState(false)
   const [isSavingCustomTheme, setIsSavingCustomTheme] = useState(false)
   const [settingsFeedback, setSettingsFeedback] = useState('')
   const [settingsFeedbackTone, setSettingsFeedbackTone] = useState<FeedbackTone>('normal')
-  const [isRecordingHotkey, setIsRecordingHotkey] = useState(false)
+  const [recordingHotkeyField, setRecordingHotkeyField] = useState<HotkeyField | null>(null)
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)')
@@ -80,6 +87,10 @@ function SettingsApp() {
           setActiveTargetId(config.activeTargetId)
           setHotkey(config.hotkey)
           setHotkeyInput(config.hotkey)
+          setHideHotkey(config.hideHotkey)
+          setHideHotkeyInput(config.hideHotkey)
+          setNextTargetHotkey(config.nextTargetHotkey)
+          setNextTargetHotkeyInput(config.nextTargetHotkey)
           setSaveShortcutMode(config.saveShortcutMode)
           setNoteTemplate(config.noteTemplate)
           setNoteTemplateInput(config.noteTemplate)
@@ -137,17 +148,17 @@ function SettingsApp() {
     '--custom-accent-color': customThemeDraft.accentColor,
   } as CSSProperties
 
-  const hotkeyRecorderNote = useMemo(() => {
-    if (isRecordingHotkey) {
+  const getHotkeyRecorderNote = (field: HotkeyField, activeHotkey: string) => {
+    if (recordingHotkeyField === field) {
       return 'Press your shortcut now. Modifier-only keys are ignored.'
     }
 
-    if (hotkey) {
-      return `Current active: ${hotkey}`
+    if (activeHotkey) {
+      return `Current active: ${activeHotkey}`
     }
 
     return 'No active shortcut yet.'
-  }, [hotkey, isRecordingHotkey])
+  }
 
   const handleWindowDragStart = async (event: React.MouseEvent<HTMLElement>) => {
     if (event.button !== 0) {
@@ -332,31 +343,89 @@ function SettingsApp() {
     }
   }
 
-  const handleSaveHotkey = async () => {
-    setIsSavingHotkey(true)
+  const handleSaveHotkey = async (field: HotkeyField) => {
+    setHotkeySavingState(field, true)
     setSettingsFeedback('')
     setSettingsFeedbackTone('normal')
 
     try {
-      const response = await invoke<HotkeyUpdateResponse>('set_hotkey', {
-        hotkey: hotkeyInput,
+      const response = await invoke<HotkeyUpdateResponse>(hotkeyCommandForField(field), {
+        hotkey: hotkeyInputForField(field),
       })
-      setHotkey(response.config.hotkey)
-      setHotkeyInput(response.config.hotkey)
+      applyHotkeyConfig(response.config)
 
       if (response.warning) {
         setSettingsFeedback(response.warning)
         setSettingsFeedbackTone('error')
       } else {
-        setSettingsFeedback('Hotkey updated.')
+        setSettingsFeedback(`${hotkeyLabelForField(field)} hotkey updated.`)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setSettingsFeedback(message)
       setSettingsFeedbackTone('error')
     } finally {
-      setIsSavingHotkey(false)
+      setHotkeySavingState(field, false)
     }
+  }
+
+  const applyHotkeyConfig = (config: AppConfig) => {
+    setHotkey(config.hotkey)
+    setHotkeyInput(config.hotkey)
+    setHideHotkey(config.hideHotkey)
+    setHideHotkeyInput(config.hideHotkey)
+    setNextTargetHotkey(config.nextTargetHotkey)
+    setNextTargetHotkeyInput(config.nextTargetHotkey)
+  }
+
+  const hotkeyInputForField = (field: HotkeyField) => {
+    if (field === 'hide') {
+      return hideHotkeyInput
+    }
+
+    if (field === 'next-target') {
+      return nextTargetHotkeyInput
+    }
+
+    return hotkeyInput
+  }
+
+  const hotkeyCommandForField = (field: HotkeyField) => {
+    if (field === 'hide') {
+      return 'set_hide_hotkey'
+    }
+
+    if (field === 'next-target') {
+      return 'set_next_target_hotkey'
+    }
+
+    return 'set_hotkey'
+  }
+
+  const hotkeyLabelForField = (field: HotkeyField) => {
+    if (field === 'hide') {
+      return 'Hide'
+    }
+
+    if (field === 'next-target') {
+      return 'Next target'
+    }
+
+    return 'Capture'
+  }
+
+  const setHotkeySavingState = (field: HotkeyField, isSaving: boolean) => {
+    if (field === 'hide') {
+      setIsSavingHideHotkey(isSaving)
+      return
+    }
+
+    if (field === 'next-target') {
+      setIsSavingNextTargetHotkey(isSaving)
+      return
+    }
+
+    setIsSavingHotkey(isSaving)
   }
 
   const handleSaveShortcutModeChange = async (nextMode: SaveShortcutMode) => {
@@ -453,7 +522,7 @@ function SettingsApp() {
     setSettingsFeedbackTone('normal')
   }
 
-  const handleHotkeyKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleHotkeyKeyDown = (event: React.KeyboardEvent<HTMLInputElement>, field: HotkeyField) => {
     event.preventDefault()
     event.stopPropagation()
 
@@ -464,7 +533,13 @@ function SettingsApp() {
       return
     }
 
-    setHotkeyInput(nextHotkey)
+    if (field === 'hide') {
+      setHideHotkeyInput(nextHotkey)
+    } else if (field === 'next-target') {
+      setNextTargetHotkeyInput(nextHotkey)
+    } else {
+      setHotkeyInput(nextHotkey)
+    }
     setSettingsFeedback('')
     setSettingsFeedbackTone('normal')
   }
@@ -650,33 +725,93 @@ function SettingsApp() {
 
           <div className="settings-section">
             <div className="settings-label-row">
-              <span className="settings-label">Hotkey</span>
-              <span className="settings-value">{hotkey || 'Not active'}</span>
+              <span className="settings-label">Hotkeys</span>
+              <span className="settings-value">Global</span>
             </div>
-            <input
-              className={`settings-input hotkey-recorder ${isRecordingHotkey ? 'is-recording' : ''}`}
-              type="text"
-              value={hotkeyInput}
-              readOnly
-              onFocus={() => setIsRecordingHotkey(true)}
-              onBlur={() => setIsRecordingHotkey(false)}
-              onKeyDown={handleHotkeyKeyDown}
-              placeholder="Click here, then press your shortcut"
-            />
-            <div className="settings-actions">
-              <button
-                className="settings-save-button"
-                type="button"
-                onClick={handleSaveHotkey}
-                disabled={isSavingHotkey}
-              >
-                {isSavingHotkey ? 'Saving Hotkey' : 'Save Hotkey'}
-              </button>
-              <span className="settings-inline-value">{hotkeyRecorderNote}</span>
-              <span className="settings-inline-value">
-                Save keeps the entered hotkey in config. If it conflicts, the previous working hotkey stays active.
-              </span>
+            <div className="hotkey-list">
+              <div className="hotkey-row">
+                <label className="settings-label" htmlFor="capture-hotkey">
+                  Capture
+                </label>
+                <input
+                  id="capture-hotkey"
+                  className={`settings-input hotkey-recorder ${recordingHotkeyField === 'capture' ? 'is-recording' : ''}`}
+                  type="text"
+                  value={hotkeyInput}
+                  readOnly
+                  onFocus={() => setRecordingHotkeyField('capture')}
+                  onBlur={() => setRecordingHotkeyField(null)}
+                  onKeyDown={(event) => handleHotkeyKeyDown(event, 'capture')}
+                  placeholder="Click here, then press your shortcut"
+                />
+                <button
+                  className="settings-save-button"
+                  type="button"
+                  onClick={() => handleSaveHotkey('capture')}
+                  disabled={isSavingHotkey}
+                >
+                  {isSavingHotkey ? 'Saving' : 'Save'}
+                </button>
+                <span className="settings-inline-value">{getHotkeyRecorderNote('capture', hotkey)}</span>
+              </div>
+
+              <div className="hotkey-row">
+                <label className="settings-label" htmlFor="hide-hotkey">
+                  Hide
+                </label>
+                <input
+                  id="hide-hotkey"
+                  className={`settings-input hotkey-recorder ${recordingHotkeyField === 'hide' ? 'is-recording' : ''}`}
+                  type="text"
+                  value={hideHotkeyInput}
+                  readOnly
+                  onFocus={() => setRecordingHotkeyField('hide')}
+                  onBlur={() => setRecordingHotkeyField(null)}
+                  onKeyDown={(event) => handleHotkeyKeyDown(event, 'hide')}
+                  placeholder="Click here, then press your shortcut"
+                />
+                <button
+                  className="settings-save-button"
+                  type="button"
+                  onClick={() => handleSaveHotkey('hide')}
+                  disabled={isSavingHideHotkey}
+                >
+                  {isSavingHideHotkey ? 'Saving' : 'Save'}
+                </button>
+                <span className="settings-inline-value">{getHotkeyRecorderNote('hide', hideHotkey)}</span>
+              </div>
+
+              <div className="hotkey-row">
+                <label className="settings-label" htmlFor="next-target-hotkey">
+                  Next Target
+                </label>
+                <input
+                  id="next-target-hotkey"
+                  className={`settings-input hotkey-recorder ${
+                    recordingHotkeyField === 'next-target' ? 'is-recording' : ''
+                  }`}
+                  type="text"
+                  value={nextTargetHotkeyInput}
+                  readOnly
+                  onFocus={() => setRecordingHotkeyField('next-target')}
+                  onBlur={() => setRecordingHotkeyField(null)}
+                  onKeyDown={(event) => handleHotkeyKeyDown(event, 'next-target')}
+                  placeholder="Click here, then press your shortcut"
+                />
+                <button
+                  className="settings-save-button"
+                  type="button"
+                  onClick={() => handleSaveHotkey('next-target')}
+                  disabled={isSavingNextTargetHotkey}
+                >
+                  {isSavingNextTargetHotkey ? 'Saving' : 'Save'}
+                </button>
+                <span className="settings-inline-value">{getHotkeyRecorderNote('next-target', nextTargetHotkey)}</span>
+              </div>
             </div>
+            <span className="settings-inline-value">
+              Save keeps the entered hotkey in config. If it conflicts, the previous working hotkey stays active.
+            </span>
           </div>
 
           <div className="settings-section">

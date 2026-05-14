@@ -6,6 +6,8 @@ const CONFIG_FILE_NAME: &str = "config.json";
 const CONFIG_HELP_FILE_NAME: &str = "config.help.md";
 const DEFAULT_TARGET_FILE_NAME: &str = "Fleeting Note.md";
 pub const DEFAULT_HOTKEY: &str = "Ctrl+Alt+Space";
+pub const DEFAULT_HIDE_HOTKEY: &str = "Ctrl+Alt+H";
+pub const DEFAULT_NEXT_TARGET_HOTKEY: &str = "Ctrl+Alt+Right";
 pub const DEFAULT_SIDE_HIDE_ENABLED: u8 = 1;
 pub const DEFAULT_EDGE_SNAP_THRESHOLD_PX: u32 = 36;
 pub const DEFAULT_VISIBLE_HANDLE_WIDTH_PX: u32 = 22;
@@ -95,6 +97,10 @@ pub struct AppConfig {
     pub target_file_path: String,
     #[serde(default = "default_hotkey")]
     pub hotkey: String,
+    #[serde(default = "default_hide_hotkey")]
+    pub hide_hotkey: String,
+    #[serde(default = "default_next_target_hotkey")]
+    pub next_target_hotkey: String,
     #[serde(default = "default_side_hide_enabled")]
     pub side_hide_enabled: u8,
     #[serde(default = "default_edge_snap_threshold_px")]
@@ -156,6 +162,12 @@ pub fn load_app_config<R: Runtime>(app: &AppHandle<R>) -> Result<AppConfig, Stri
     normalize_targets(app, &mut config)?;
     if config.hotkey.trim().is_empty() {
         config.hotkey = DEFAULT_HOTKEY.into();
+    }
+    if config.hide_hotkey.trim().is_empty() {
+        config.hide_hotkey = DEFAULT_HIDE_HOTKEY.into();
+    }
+    if config.next_target_hotkey.trim().is_empty() {
+        config.next_target_hotkey = DEFAULT_NEXT_TARGET_HOTKEY.into();
     }
     if config.edge_snap_threshold_px == 0 {
         config.edge_snap_threshold_px = DEFAULT_EDGE_SNAP_THRESHOLD_PX;
@@ -260,6 +272,8 @@ pub fn default_app_config<R: Runtime>(app: &AppHandle<R>) -> AppConfig {
         target_file_path: default_target_file_path(app)
             .unwrap_or_else(|_| DEFAULT_TARGET_FILE_NAME.into()),
         hotkey: DEFAULT_HOTKEY.into(),
+        hide_hotkey: DEFAULT_HIDE_HOTKEY.into(),
+        next_target_hotkey: DEFAULT_NEXT_TARGET_HOTKEY.into(),
         side_hide_enabled: DEFAULT_SIDE_HIDE_ENABLED,
         edge_snap_threshold_px: DEFAULT_EDGE_SNAP_THRESHOLD_PX,
         visible_handle_width_px: DEFAULT_VISIBLE_HANDLE_WIDTH_PX,
@@ -296,6 +310,14 @@ fn default_target_file_path<R: Runtime>(app: &AppHandle<R>) -> Result<String, St
 
 fn default_hotkey() -> String {
     DEFAULT_HOTKEY.into()
+}
+
+fn default_hide_hotkey() -> String {
+    DEFAULT_HIDE_HOTKEY.into()
+}
+
+fn default_next_target_hotkey() -> String {
+    DEFAULT_NEXT_TARGET_HOTKEY.into()
 }
 
 fn default_side_hide_enabled() -> u8 {
@@ -553,9 +575,21 @@ Default:
 ```
 
 ## hotkey
-The global hotkey that shows or hides the capture window.
+The global hotkey that shows or toggles the capture window.
 
 Example: `Ctrl+Alt+Space`.
+
+## hideHotkey
+The global hotkey that hides or docks the capture window while preserving the current draft.
+
+Example: `Ctrl+Alt+H`.
+
+## nextTargetHotkey
+The global hotkey that switches the active markdown target to the next configured target.
+
+The current draft stays unchanged.
+
+Example: `Ctrl+Alt+Right`.
 
 ## saveShortcutMode
 Controls how Enter behaves in the main input box.

@@ -22,6 +22,8 @@ export type AppConfig = {
   targets: MarkdownTarget[]
   activeTargetId: string
   hotkey: string
+  hideHotkey: string
+  nextTargetHotkey: string
   sideHideEnabled: number
   edgeSnapThresholdPx: number
   visibleHandleWidthPx: number

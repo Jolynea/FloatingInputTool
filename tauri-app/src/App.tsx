@@ -76,6 +76,7 @@ function App() {
     let unlistenAppConfigChange: (() => void) | undefined
     let unlistenCustomThemePreviewChange: (() => void) | undefined
     let unlistenMainWindowModeChange: (() => void) | undefined
+    let unlistenFocusMainEditor: (() => void) | undefined
 
     const loadConfig = async () => {
       try {
@@ -130,6 +131,16 @@ function App() {
       )
     }
 
+    const attachFocusMainEditorListener = async () => {
+      unlistenFocusMainEditor = await listen('focus-main-editor', () => {
+        if (!ignore) {
+          window.setTimeout(() => {
+            textareaRef.current?.focus()
+          }, 0)
+        }
+      })
+    }
+
     loadConfig()
     attachThemeListener().catch((error) => {
       console.error('Failed to attach theme listener', error)
@@ -143,6 +154,9 @@ function App() {
     attachMainWindowModeListener().catch((error) => {
       console.error('Failed to attach main window mode listener', error)
     })
+    attachFocusMainEditorListener().catch((error) => {
+      console.error('Failed to attach main editor focus listener', error)
+    })
 
     return () => {
       ignore = true
@@ -150,6 +164,7 @@ function App() {
       unlistenAppConfigChange?.()
       unlistenCustomThemePreviewChange?.()
       unlistenMainWindowModeChange?.()
+      unlistenFocusMainEditor?.()
     }
   }, [])
 
@@ -612,6 +627,8 @@ function App() {
 
             <div className="editor-shell">
               <textarea
+                id="fleeting-note-editor"
+                name="fleeting-note-editor"
                 ref={textareaRef}
                 aria-label="Fleeting note content"
                 spellCheck={false}

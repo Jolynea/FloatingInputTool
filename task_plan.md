@@ -6,7 +6,7 @@ Build the first working version of FloatingInputTool as a lightweight AutoHotkey
 
 ## Current Phase
 
-Phase 13 - Implement single-window side hide in Tauri
+Phase 15 - Add configurable global action hotkeys
 
 ## Phases
 
@@ -26,6 +26,7 @@ Phase 13 - Implement single-window side hide in Tauri
 | 12 | in_progress | Split Settings into a dedicated modal window and add shortcut recording |
 | 13 | in_progress | Implement single-window side hide with hover-based expand and re-hide |
 | 14 | in_progress | Polish packaging behavior, tray-only presence, side-hide stability, and dock animation |
+| 15 | in_progress | Add configurable capture, hide, and next-target global hotkeys |
 
 ## Decisions
 
@@ -45,6 +46,7 @@ Phase 13 - Implement single-window side hide in Tauri
 - The initial Tauri scaffold lives in `tauri-app/` to keep the migration isolated from the preserved AHK prototype.
 - Side hide will use a single-window docking model rather than a second functional capture window.
 - Main and settings windows should stay out of the Windows taskbar; the tray icon is the app's persistent presence.
+- Global shortcuts are action-based: Capture toggles/focuses input, Hide preserves the draft while hiding or docking, and Next Target cycles the active markdown target without touching the draft.
 
 ## Risks
 
@@ -69,4 +71,4 @@ Phase 13 - Implement single-window side hide in Tauri
 
 1. Manually verify that taskbar buttons are hidden while the tray icon remains usable.
 2. Manually verify first-click typing after side-handle expansion.
-3. Tune side-hide animation duration if the current `160ms` movement feels too slow or too fast.
+3. Manually verify capture, hide, and next-target hotkey recording plus conflict warnings in Settings.

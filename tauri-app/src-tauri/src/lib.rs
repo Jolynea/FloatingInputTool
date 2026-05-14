@@ -3,10 +3,11 @@ mod config;
 use config::{
     default_app_config, load_app_config, normalize_targets, sanitize_custom_theme,
     sanitize_targets, save_app_config, AppConfig, CustomTheme, MarkdownTarget, SaveShortcutMode,
-    ThemeMode, DEFAULT_HOTKEY, DEFAULT_NOTE_TEMPLATE,
+    ThemeMode, DEFAULT_HIDE_HOTKEY, DEFAULT_HOTKEY, DEFAULT_NEXT_TARGET_HOTKEY,
+    DEFAULT_NOTE_TEMPLATE,
 };
 use std::sync::Mutex;
-use std::{fs, path::Path};
+use std::{fs, path::Path, str::FromStr};
 use std::{thread, time::Duration};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -15,7 +16,7 @@ use tauri::{
     WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry,
 };
 #[cfg(desktop)]
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 #[cfg(windows)]
 use windows_sys::Win32::Foundation::POINT;
 #[cfg(windows)]
@@ -35,6 +36,7 @@ const WINDOW_LABEL_SETTINGS: &str = "settings";
 const EVENT_THEME_MODE_CHANGED: &str = "theme-mode-changed";
 const EVENT_APP_CONFIG_CHANGED: &str = "app-config-changed";
 const EVENT_MAIN_WINDOW_MODE_CHANGED: &str = "main-window-mode-changed";
+const EVENT_FOCUS_MAIN_EDITOR: &str = "focus-main-editor";
 const AUTO_DOCK_SETTLE_MS: u64 = 180;
 const WINDOW_BOUNDS_ANIMATION_MS: u64 = 120;
 const WINDOW_BOUNDS_ANIMATION_STEPS: u32 = 10;
@@ -83,11 +85,74 @@ struct MainWindowRuntimeState {
 struct AppState {
     config: Mutex<AppConfig>,
     theme_menu_items: ThemeMenuItems,
-    active_hotkey: Mutex<Option<String>>,
+    active_hotkeys: Mutex<ActiveHotkeys>,
     main_window_state: Mutex<MainWindowRuntimeState>,
     auto_dock_generation: Mutex<u64>,
     manual_drag_in_progress: Mutex<bool>,
     auto_dock_suppressed_until_ms: Mutex<u128>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GlobalHotkeyAction {
+    Capture,
+    Hide,
+    NextTarget,
+}
+
+#[derive(Debug, Clone, Default)]
+struct ActiveHotkeys {
+    capture: Option<RegisteredHotkey>,
+    hide: Option<RegisteredHotkey>,
+    next_target: Option<RegisteredHotkey>,
+}
+
+#[derive(Debug, Clone)]
+struct RegisteredHotkey {
+    accelerator: String,
+    id: u32,
+}
+
+impl ActiveHotkeys {
+    fn get(&self, action: GlobalHotkeyAction) -> Option<&RegisteredHotkey> {
+        match action {
+            GlobalHotkeyAction::Capture => self.capture.as_ref(),
+            GlobalHotkeyAction::Hide => self.hide.as_ref(),
+            GlobalHotkeyAction::NextTarget => self.next_target.as_ref(),
+        }
+    }
+
+    fn set(&mut self, action: GlobalHotkeyAction, hotkey: Option<RegisteredHotkey>) {
+        match action {
+            GlobalHotkeyAction::Capture => self.capture = hotkey,
+            GlobalHotkeyAction::Hide => self.hide = hotkey,
+            GlobalHotkeyAction::NextTarget => self.next_target = hotkey,
+        }
+    }
+
+    fn action_for_hotkey_id(&self, hotkey_id: u32) -> Option<GlobalHotkeyAction> {
+        [
+            (GlobalHotkeyAction::Capture, self.capture.as_ref()),
+            (GlobalHotkeyAction::Hide, self.hide.as_ref()),
+            (GlobalHotkeyAction::NextTarget, self.next_target.as_ref()),
+        ]
+        .into_iter()
+        .find_map(|(action, active_hotkey)| {
+            active_hotkey
+                .filter(|hotkey| hotkey.id == hotkey_id)
+                .map(|_| action)
+        })
+    }
+}
+
+impl RegisteredHotkey {
+    fn from_accelerator(accelerator: &str) -> Result<Self, String> {
+        let shortcut = Shortcut::from_str(accelerator)
+            .map_err(|error| format!("failed to parse hotkey {accelerator}: {error}"))?;
+        Ok(Self {
+            accelerator: accelerator.to_string(),
+            id: shortcut.id(),
+        })
+    }
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -279,18 +344,50 @@ fn set_hotkey(
     state: State<'_, AppState>,
     hotkey: String,
 ) -> Result<HotkeyUpdateResponse, String> {
+    set_action_hotkey(&app, &state, GlobalHotkeyAction::Capture, hotkey)
+}
+
+#[tauri::command]
+fn set_hide_hotkey(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    hotkey: String,
+) -> Result<HotkeyUpdateResponse, String> {
+    set_action_hotkey(&app, &state, GlobalHotkeyAction::Hide, hotkey)
+}
+
+#[tauri::command]
+fn set_next_target_hotkey(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    hotkey: String,
+) -> Result<HotkeyUpdateResponse, String> {
+    set_action_hotkey(&app, &state, GlobalHotkeyAction::NextTarget, hotkey)
+}
+
+fn set_action_hotkey<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &State<'_, AppState>,
+    action: GlobalHotkeyAction,
+    hotkey: String,
+) -> Result<HotkeyUpdateResponse, String> {
     let normalized_hotkey = hotkey.trim().to_string();
     let mut config = state
         .config
         .lock()
         .map_err(|error| format!("failed to lock app state: {error}"))?;
 
-    config.hotkey = normalized_hotkey.clone();
+    match action {
+        GlobalHotkeyAction::Capture => config.hotkey = normalized_hotkey.clone(),
+        GlobalHotkeyAction::Hide => config.hide_hotkey = normalized_hotkey.clone(),
+        GlobalHotkeyAction::NextTarget => config.next_target_hotkey = normalized_hotkey.clone(),
+    }
+
     save_app_config(&app, &config)?;
     let next_config = config.clone();
     drop(config);
 
-    let warning = match activate_hotkey(&app, &state, &normalized_hotkey) {
+    let warning = match activate_hotkey(app, state, action, &normalized_hotkey) {
         Ok(()) => None,
         Err(error) => Some(error),
     };
@@ -373,6 +470,37 @@ fn active_target_file_path(config: &AppConfig) -> String {
         .unwrap_or_else(|| config.target_file_path.clone())
 }
 
+fn activate_next_target<R: Runtime>(app: &AppHandle<R>) -> Result<AppConfig, String> {
+    let state = app.state::<AppState>();
+    let mut config = state
+        .config
+        .lock()
+        .map_err(|error| format!("failed to lock app state: {error}"))?;
+
+    normalize_targets(app, &mut config)?;
+    if config.targets.len() <= 1 {
+        return Ok(config.clone());
+    }
+
+    let current_index = config
+        .targets
+        .iter()
+        .position(|target| target.id == config.active_target_id)
+        .unwrap_or(0);
+    let next_index = (current_index + 1) % config.targets.len();
+    config.active_target_id = config.targets[next_index].id.clone();
+    normalize_targets(app, &mut config)?;
+    save_app_config(app, &config)?;
+
+    let next_config = config.clone();
+    drop(config);
+
+    app.emit(EVENT_APP_CONFIG_CHANGED, next_config.clone())
+        .map_err(|error| format!("failed to emit app config change: {error}"))?;
+
+    Ok(next_config)
+}
+
 #[tauri::command]
 fn begin_manual_window_drag(state: State<'_, AppState>) -> Result<(), String> {
     let mut is_dragging = state
@@ -428,7 +556,12 @@ fn is_cursor_inside_main_window(app: AppHandle, padding_px: Option<i32>) -> Resu
 }
 
 #[tauri::command]
-fn hide_or_dock_main_window(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+fn hide_or_dock_main_window(app: AppHandle) -> Result<(), String> {
+    hide_or_dock_main_window_inner(&app)
+}
+
+fn hide_or_dock_main_window_inner<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let state = app.state::<AppState>();
     let config = state
         .config
         .lock()
@@ -444,7 +577,7 @@ fn hide_or_dock_main_window(app: AppHandle, state: State<'_, AppState>) -> Resul
             .hide()
             .map_err(|error| format!("failed to hide main window: {error}"))?;
         update_main_window_runtime_state(
-            &app,
+            app,
             &state,
             MainWindowRuntimeState {
                 mode: MainWindowMode::Normal,
@@ -465,7 +598,7 @@ fn hide_or_dock_main_window(app: AppHandle, state: State<'_, AppState>) -> Resul
         set_window_resizable(&window, false)?;
         settle_window_bounds_animation();
         update_main_window_runtime_state(
-            &app,
+            app,
             &state,
             MainWindowRuntimeState {
                 mode: dock_side.to_docked_mode(),
@@ -479,7 +612,7 @@ fn hide_or_dock_main_window(app: AppHandle, state: State<'_, AppState>) -> Resul
             .hide()
             .map_err(|error| format!("failed to hide main window: {error}"))?;
         update_main_window_runtime_state(
-            &app,
+            app,
             &state,
             MainWindowRuntimeState {
                 mode: MainWindowMode::Normal,
@@ -661,6 +794,7 @@ fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+        let _ = app.emit(EVENT_FOCUS_MAIN_EDITOR, ());
     }
 }
 
@@ -696,6 +830,34 @@ fn toggle_main_window<R: Runtime>(app: &AppHandle<R>) {
             let _ = window.hide();
         } else {
             show_main_window(app);
+        }
+    }
+}
+
+fn handle_global_hotkey<R: Runtime>(app: &AppHandle<R>, shortcut: &Shortcut) {
+    let state = app.state::<AppState>();
+    let action = match state.active_hotkeys.lock() {
+        Ok(active_hotkeys) => active_hotkeys.action_for_hotkey_id(shortcut.id()),
+        Err(error) => {
+            log::warn!("failed to lock active hotkey state: {error}");
+            None
+        }
+    };
+
+    match action {
+        Some(GlobalHotkeyAction::Capture) => toggle_main_window(app),
+        Some(GlobalHotkeyAction::Hide) => {
+            if let Err(error) = hide_or_dock_main_window_inner(app) {
+                log::warn!("{error}");
+            }
+        }
+        Some(GlobalHotkeyAction::NextTarget) => {
+            if let Err(error) = activate_next_target(app) {
+                log::warn!("{error}");
+            }
+        }
+        None => {
+            log::warn!("received unknown global shortcut event: {shortcut}");
         }
     }
 }
@@ -943,68 +1105,127 @@ fn normalize_target_file_path(target_file_path: &str) -> Result<String, String> 
 fn activate_hotkey<R: Runtime>(
     app: &AppHandle<R>,
     state: &State<'_, AppState>,
+    action: GlobalHotkeyAction,
     requested_hotkey: &str,
 ) -> Result<(), String> {
     let normalized_hotkey = requested_hotkey.trim();
     if normalized_hotkey.is_empty() {
-        return Err(String::from(
-            "Hotkey was saved, but it is empty. The previous working hotkey will stay active.",
+        return Err(format!(
+            "{} hotkey was saved, but it is empty. The previous working hotkey will stay active.",
+            hotkey_action_label(action)
         ));
     }
 
-    let mut active_hotkey = state
-        .active_hotkey
+    let mut active_hotkeys = state
+        .active_hotkeys
         .lock()
         .map_err(|error| format!("failed to lock active hotkey state: {error}"))?;
 
-    if active_hotkey.as_deref() == Some(normalized_hotkey) {
+    if active_hotkeys
+        .get(action)
+        .map(|hotkey| hotkey.accelerator.as_str())
+        == Some(normalized_hotkey)
+    {
         return Ok(());
     }
 
-    let previous_hotkey = active_hotkey.clone();
-    if let Some(previous_hotkey_value) = previous_hotkey.as_deref() {
-        let _ = app.global_shortcut().unregister(previous_hotkey_value);
+    let previous_hotkey = active_hotkeys.get(action).cloned();
+    if let Some(previous_hotkey_value) = previous_hotkey.as_ref() {
+        let _ = app
+            .global_shortcut()
+            .unregister(previous_hotkey_value.accelerator.as_str());
     }
 
     match app.global_shortcut().register(normalized_hotkey) {
         Ok(()) => {
-            *active_hotkey = Some(normalized_hotkey.to_string());
+            active_hotkeys.set(
+                action,
+                Some(RegisteredHotkey::from_accelerator(normalized_hotkey)?),
+            );
             Ok(())
         }
         Err(error) => {
-            if let Some(previous_hotkey_value) = previous_hotkey.as_deref() {
-                let _ = app.global_shortcut().register(previous_hotkey_value);
+            if let Some(previous_hotkey_value) = previous_hotkey.as_ref() {
+                let _ = app
+                    .global_shortcut()
+                    .register(previous_hotkey_value.accelerator.as_str());
             }
-            *active_hotkey = previous_hotkey;
+            active_hotkeys.set(action, previous_hotkey);
             Err(format!(
-        "Hotkey was saved, but it could not be activated. It may be invalid or already in use. {error}"
+        "{} hotkey was saved, but it could not be activated. It may be invalid or already in use. {error}",
+        hotkey_action_label(action)
       ))
         }
     }
 }
 
+fn register_startup_hotkeys<R: Runtime>(app: &AppHandle<R>, config: &AppConfig) -> ActiveHotkeys {
+    ActiveHotkeys {
+        capture: register_startup_hotkey(
+            app,
+            GlobalHotkeyAction::Capture,
+            &config.hotkey,
+            Some(DEFAULT_HOTKEY),
+        ),
+        hide: register_startup_hotkey(
+            app,
+            GlobalHotkeyAction::Hide,
+            &config.hide_hotkey,
+            Some(DEFAULT_HIDE_HOTKEY),
+        ),
+        next_target: register_startup_hotkey(
+            app,
+            GlobalHotkeyAction::NextTarget,
+            &config.next_target_hotkey,
+            Some(DEFAULT_NEXT_TARGET_HOTKEY),
+        ),
+    }
+}
+
 fn register_startup_hotkey<R: Runtime>(
     app: &AppHandle<R>,
+    action: GlobalHotkeyAction,
     configured_hotkey: &str,
-) -> Option<String> {
+    fallback_hotkey: Option<&str>,
+) -> Option<RegisteredHotkey> {
     let normalized_hotkey = configured_hotkey.trim();
     if !normalized_hotkey.is_empty() {
         match app.global_shortcut().register(normalized_hotkey) {
-            Ok(()) => return Some(normalized_hotkey.to_string()),
+            Ok(()) => return RegisteredHotkey::from_accelerator(normalized_hotkey).ok(),
             Err(error) => {
                 log::warn!(
-          "failed to register configured hotkey {normalized_hotkey}: {error}; falling back to {DEFAULT_HOTKEY}"
-        );
+                    "failed to register configured {} hotkey {normalized_hotkey}: {error}",
+                    hotkey_action_label(action)
+                );
             }
         }
     }
 
-    match app.global_shortcut().register(DEFAULT_HOTKEY) {
-        Ok(()) => Some(DEFAULT_HOTKEY.to_string()),
+    let Some(fallback_hotkey) = fallback_hotkey else {
+        return None;
+    };
+
+    if normalized_hotkey.eq_ignore_ascii_case(fallback_hotkey) {
+        return None;
+    }
+
+    match app.global_shortcut().register(fallback_hotkey) {
+        Ok(()) => RegisteredHotkey::from_accelerator(fallback_hotkey).ok(),
         Err(error) => {
-            log::error!("failed to register fallback hotkey {DEFAULT_HOTKEY}: {error}");
+            log::error!(
+                "failed to register fallback {} hotkey {fallback_hotkey}: {error}",
+                hotkey_action_label(action)
+            );
             None
         }
+    }
+}
+
+fn hotkey_action_label(action: GlobalHotkeyAction) -> &'static str {
+    match action {
+        GlobalHotkeyAction::Capture => "Capture",
+        GlobalHotkeyAction::Hide => "Hide",
+        GlobalHotkeyAction::NextTarget => "Next target",
     }
 }
 
@@ -1283,7 +1504,9 @@ fn suppress_auto_dock_for(state: &State<'_, AppState>, duration_ms: u64) -> Resu
 }
 
 fn settle_window_bounds_animation() {
-    thread::sleep(Duration::from_millis(WINDOW_BOUNDS_ANIMATION_PAINT_SETTLE_MS));
+    thread::sleep(Duration::from_millis(
+        WINDOW_BOUNDS_ANIMATION_PAINT_SETTLE_MS,
+    ));
 }
 
 fn set_window_resizable<R: Runtime>(
@@ -1572,9 +1795,9 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
-                        toggle_main_window(app);
+                        handle_global_hotkey(app, shortcut);
                     }
                 })
                 .build(),
@@ -1596,13 +1819,13 @@ pub fn run() {
                 }
             };
 
-            let active_hotkey = register_startup_hotkey(app.handle(), &config.hotkey);
+            let active_hotkeys = register_startup_hotkeys(app.handle(), &config);
             let theme_menu_items = create_tray(app.handle(), config.theme_mode)?;
 
             app.manage(AppState {
                 config: Mutex::new(config),
                 theme_menu_items,
-                active_hotkey: Mutex::new(active_hotkey),
+                active_hotkeys: Mutex::new(active_hotkeys),
                 main_window_state: Mutex::new(MainWindowRuntimeState::default()),
                 auto_dock_generation: Mutex::new(0),
                 manual_drag_in_progress: Mutex::new(false),
@@ -1622,6 +1845,8 @@ pub fn run() {
             set_active_target_id,
             set_markdown_targets,
             set_hotkey,
+            set_hide_hotkey,
+            set_next_target_hotkey,
             set_save_shortcut_mode,
             set_note_template,
             set_custom_theme,
