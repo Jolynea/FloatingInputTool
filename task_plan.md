@@ -6,7 +6,7 @@ Build the first working version of FloatingInputTool as a lightweight AutoHotkey
 
 ## Current Phase
 
-Phase 15 - Add configurable global action hotkeys
+Phase 16 - Add tray language switching
 
 ## Phases
 
@@ -27,6 +27,7 @@ Phase 15 - Add configurable global action hotkeys
 | 13 | in_progress | Implement single-window side hide with hover-based expand and re-hide |
 | 14 | in_progress | Polish packaging behavior, tray-only presence, side-hide stability, and dock animation |
 | 15 | in_progress | Add configurable capture, hide, and next-target global hotkeys |
+| 16 | in_progress | Add tray-based English/Chinese UI language switching |
 
 ## Decisions
 
@@ -47,6 +48,7 @@ Phase 15 - Add configurable global action hotkeys
 - Side hide will use a single-window docking model rather than a second functional capture window.
 - Main and settings windows should stay out of the Windows taskbar; the tray icon is the app's persistent presence.
 - Global shortcuts are action-based: Capture toggles/focuses input, Hide preserves the draft while hiding or docking, and Next Target cycles the active markdown target without touching the draft.
+- UI language is controlled from the tray menu and persisted as `languageMode`; Chinese mode uses a SimHei-first font stack in the web windows.
 
 ## Risks
 
@@ -71,4 +73,4 @@ Phase 15 - Add configurable global action hotkeys
 
 1. Manually verify that taskbar buttons are hidden while the tray icon remains usable.
 2. Manually verify first-click typing after side-handle expansion.
-3. Manually verify capture, hide, and next-target hotkey recording plus conflict warnings in Settings.
+3. Manually verify tray `Language / 语言` switches the main window and Settings text between English and Chinese.

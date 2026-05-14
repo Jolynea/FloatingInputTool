@@ -9,13 +9,14 @@ import type {
   CustomTheme,
   FeedbackTone,
   HotkeyUpdateResponse,
+  LanguageMode,
   MarkdownTarget,
   ResolvedTheme,
   SaveShortcutMode,
   ThemeMode,
   ThemeModeChangedPayload,
 } from './appModel'
-import { saveShortcutOptions, themeOptions } from './appModel'
+import { getSaveShortcutOptions, getThemeOptions, uiText } from './appModel'
 
 const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta'])
 type HotkeyField = 'capture' | 'hide' | 'next-target'
@@ -36,6 +37,7 @@ function SettingsApp() {
     window.matchMedia('(prefers-color-scheme: dark)').matches,
   )
   const [themeMode, setThemeMode] = useState<ThemeMode>('follow-system')
+  const [languageMode, setLanguageMode] = useState<LanguageMode>('english')
   const [targets, setTargets] = useState<MarkdownTarget[]>([])
   const [activeTargetId, setActiveTargetId] = useState('')
   const [isTargetListExpanded, setIsTargetListExpanded] = useState(true)
@@ -77,12 +79,14 @@ function SettingsApp() {
   useEffect(() => {
     let ignore = false
     let unlistenThemeChange: (() => void) | undefined
+    let unlistenAppConfigChange: (() => void) | undefined
 
     const loadConfig = async () => {
       try {
         const config = await invoke<AppConfig>('get_app_config')
         if (!ignore) {
           setThemeMode(config.themeMode)
+          setLanguageMode(config.languageMode)
           setTargets(config.targets)
           setActiveTargetId(config.activeTargetId)
           setHotkey(config.hotkey)
@@ -111,14 +115,39 @@ function SettingsApp() {
       })
     }
 
+    const applyConfig = (config: AppConfig) => {
+      setThemeMode(config.themeMode)
+      setLanguageMode(config.languageMode)
+      setTargets(config.targets)
+      setActiveTargetId(config.activeTargetId)
+      applyHotkeyConfig(config)
+      setSaveShortcutMode(config.saveShortcutMode)
+      setNoteTemplate(config.noteTemplate)
+      setNoteTemplateInput(config.noteTemplate)
+      setCustomThemeDraft(config.customTheme)
+      setSavedCustomTheme(config.customTheme)
+    }
+
+    const attachAppConfigListener = async () => {
+      unlistenAppConfigChange = await listen<AppConfig>('app-config-changed', (event) => {
+        if (!ignore) {
+          applyConfig(event.payload)
+        }
+      })
+    }
+
     loadConfig()
     attachThemeListener().catch((error) => {
       console.error('Failed to attach settings listeners', error)
+    })
+    attachAppConfigListener().catch((error) => {
+      console.error('Failed to attach settings app config listener', error)
     })
 
     return () => {
       ignore = true
       unlistenThemeChange?.()
+      unlistenAppConfigChange?.()
     }
   }, [])
 
@@ -139,8 +168,12 @@ function SettingsApp() {
   }, [prefersDark, themeMode])
 
   const themeModeLabel = useMemo(() => {
-    return themeOptions.find((option) => option.value === themeMode)?.label ?? 'Follow System'
-  }, [themeMode])
+    return getThemeOptions(languageMode).find((option) => option.value === themeMode)?.label ?? 'Follow System'
+  }, [languageMode, themeMode])
+
+  const themeOptions = useMemo(() => getThemeOptions(languageMode), [languageMode])
+  const saveShortcutOptions = useMemo(() => getSaveShortcutOptions(languageMode), [languageMode])
+  const text = uiText[languageMode]
 
   const settingsShellStyle = {
     '--custom-window-color': customThemeDraft.windowColor,
@@ -150,14 +183,14 @@ function SettingsApp() {
 
   const getHotkeyRecorderNote = (field: HotkeyField, activeHotkey: string) => {
     if (recordingHotkeyField === field) {
-      return 'Press your shortcut now. Modifier-only keys are ignored.'
+      return text.recordingHotkey
     }
 
     if (activeHotkey) {
-      return `Current active: ${activeHotkey}`
+      return `${text.currentActive}: ${activeHotkey}`
     }
 
-    return 'No active shortcut yet.'
+    return text.noActiveShortcut
   }
 
   const handleWindowDragStart = async (event: React.MouseEvent<HTMLElement>) => {
@@ -192,7 +225,7 @@ function SettingsApp() {
       if (config.themeMode === 'custom') {
         void emit('custom-theme-preview-changed', { customTheme: customThemeDraft })
       }
-      setSettingsFeedback('Theme updated.')
+      setSettingsFeedback(text.themeUpdated)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setSettingsFeedback(message)
@@ -318,7 +351,7 @@ function SettingsApp() {
       setTargets(config.targets)
       setActiveTargetId(config.activeTargetId)
       setIsEditingTargets(false)
-      setSettingsFeedback('Markdown targets updated.')
+      setSettingsFeedback(text.targetsUpdated)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setSettingsFeedback(message)
@@ -334,7 +367,7 @@ function SettingsApp() {
       setTargets(config.targets)
       setActiveTargetId(config.activeTargetId)
       setIsEditingTargets(false)
-      setSettingsFeedback('Markdown target changes discarded.')
+      setSettingsFeedback(text.targetChangesDiscarded)
       setSettingsFeedbackTone('normal')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -358,7 +391,7 @@ function SettingsApp() {
         setSettingsFeedback(response.warning)
         setSettingsFeedbackTone('error')
       } else {
-        setSettingsFeedback(`${hotkeyLabelForField(field)} hotkey updated.`)
+        setSettingsFeedback(`${hotkeyLabelForField(field)} ${text.hotkeyUpdated}`)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -404,14 +437,14 @@ function SettingsApp() {
 
   const hotkeyLabelForField = (field: HotkeyField) => {
     if (field === 'hide') {
-      return 'Hide'
+      return text.hide
     }
 
     if (field === 'next-target') {
-      return 'Next target'
+      return text.nextTarget
     }
 
-    return 'Capture'
+    return text.capture
   }
 
   const setHotkeySavingState = (field: HotkeyField, isSaving: boolean) => {
@@ -442,7 +475,7 @@ function SettingsApp() {
         saveShortcutMode: nextMode,
       })
       setSaveShortcutMode(config.saveShortcutMode)
-      setSettingsFeedback('Save shortcut updated.')
+      setSettingsFeedback(text.saveShortcutUpdated)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setSettingsFeedback(message)
@@ -463,7 +496,7 @@ function SettingsApp() {
       })
       setNoteTemplate(config.noteTemplate)
       setNoteTemplateInput(config.noteTemplate)
-      setSettingsFeedback('Note template updated.')
+      setSettingsFeedback(text.noteTemplateUpdated)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setSettingsFeedback(message)
@@ -503,7 +536,7 @@ function SettingsApp() {
       })
       setCustomThemeDraft(config.customTheme)
       setSavedCustomTheme(config.customTheme)
-      setSettingsFeedback('Custom theme saved.')
+      setSettingsFeedback(text.customThemeSaved)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setSettingsFeedback(message)
@@ -556,23 +589,21 @@ function SettingsApp() {
   }
 
   return (
-    <main className={`settings-app-shell theme-${resolvedTheme}`} style={settingsShellStyle}>
-      <section className="settings-panel settings-window" role="dialog" aria-label="Settings">
+    <main className={`settings-app-shell theme-${resolvedTheme} lang-${languageMode}`} style={settingsShellStyle}>
+      <section className="settings-panel settings-window" role="dialog" aria-label={text.settingsTitle}>
         <div className="settings-header">
           <div
             className="settings-window-drag-area settings-drag-area"
             data-tauri-drag-region
             onMouseDown={handleWindowDragStart}
           >
-            <h2 data-tauri-drag-region>Settings</h2>
-            <p data-tauri-drag-region>
-              Theme, destination markdown path, and shortcut recording live here.
-            </p>
+            <h2 data-tauri-drag-region>{text.settingsTitle}</h2>
+            <p data-tauri-drag-region>{text.settingsDescription}</p>
           </div>
           <button
             className="icon-button settings-close-button"
             type="button"
-            aria-label="Close settings"
+            aria-label={text.closeSettings}
             data-no-drag
             onClick={handleClose}
           >
@@ -583,7 +614,7 @@ function SettingsApp() {
         <div className="settings-content">
           <div className="settings-section">
             <div className="settings-label-row">
-              <span className="settings-label">Markdown Targets</span>
+              <span className="settings-label">{text.markdownTargets}</span>
               <button
                 className="settings-text-button"
                 type="button"
@@ -593,16 +624,16 @@ function SettingsApp() {
                   setDraggedTargetId('')
                 }}
               >
-                {isTargetListExpanded ? 'Collapse' : 'Expand'}
+                {isTargetListExpanded ? text.collapse : text.expand}
               </button>
             </div>
             {isTargetListExpanded ? (
               <div className={`target-list-editor ${isEditingTargets ? 'is-editing' : ''}`}>
                 <div className="target-editor-header" aria-hidden="true">
                   <span />
-                  <span>Nickname</span>
-                  <span>Path</span>
-                  <span>Options</span>
+                  <span>{text.nickname}</span>
+                  <span>{text.path}</span>
+                  <span>{text.options}</span>
                 </div>
                 {targets.map((target) => (
                   <div
@@ -648,7 +679,7 @@ function SettingsApp() {
                           disabled={!isEditingTargets}
                           onChange={() => setActiveTargetId(target.id)}
                         />
-                        Active
+                        {text.active}
                       </label>
                       <button
                         className="settings-text-button target-remove-button"
@@ -656,7 +687,7 @@ function SettingsApp() {
                         onClick={() => handleRemoveTarget(target.id)}
                         disabled={!isEditingTargets || targets.length <= 1}
                       >
-                        Remove
+                        {text.remove}
                       </button>
                     </div>
                   </div>
@@ -668,7 +699,7 @@ function SettingsApp() {
                 {isEditingTargets ? (
                   <>
                     <button className="settings-save-button" type="button" onClick={handleAddTarget}>
-                      Add Target
+                      {text.addTarget}
                     </button>
                     <button
                       className="settings-save-button"
@@ -676,15 +707,15 @@ function SettingsApp() {
                       onClick={handleSaveTargets}
                       disabled={isSavingTargets}
                     >
-                      {isSavingTargets ? 'Saving Targets' : 'Save Targets'}
+                      {isSavingTargets ? text.savingTargets : text.saveTargets}
                     </button>
                     <button className="settings-save-button is-danger" type="button" onClick={handleCancelTargets}>
-                      Cancel
+                      {text.cancel}
                     </button>
                   </>
                 ) : (
                   <button className="settings-save-button" type="button" onClick={() => setIsEditingTargets(true)}>
-                    Edit
+                    {text.edit}
                   </button>
                 )}
               </div>
@@ -693,8 +724,8 @@ function SettingsApp() {
 
           <div className="settings-section">
             <div className="settings-label-row">
-              <span className="settings-label">Note Template</span>
-              <span className="settings-value">Markdown</span>
+              <span className="settings-label">{text.noteTemplate}</span>
+              <span className="settings-value">{text.markdown}</span>
             </div>
             <textarea
               className="settings-input note-template-input"
@@ -703,7 +734,7 @@ function SettingsApp() {
               spellCheck={false}
             />
             <p className="settings-inline-value">
-              Placeholders: {'{{timestamp}}'}, {'{{text}}'}, {'{{text.callout}}'}.
+              {text.placeholders}: {'{{timestamp}}'}, {'{{text}}'}, {'{{text.callout}}'}.
             </p>
             <div className="settings-actions">
               <button
@@ -712,26 +743,26 @@ function SettingsApp() {
                 onClick={handleSaveNoteTemplate}
                 disabled={isSavingNoteTemplate}
               >
-                {isSavingNoteTemplate ? 'Saving Template' : 'Save Template'}
+                {isSavingNoteTemplate ? text.savingTemplate : text.saveTemplate}
               </button>
               <button className="settings-save-button is-secondary" type="button" onClick={handleResetNoteTemplate}>
-                Default
+                {text.default}
               </button>
               <button className="settings-save-button is-danger" type="button" onClick={handleCancelNoteTemplate}>
-                Cancel
+                {text.cancel}
               </button>
             </div>
           </div>
 
           <div className="settings-section">
             <div className="settings-label-row">
-              <span className="settings-label">Hotkeys</span>
-              <span className="settings-value">Global</span>
+              <span className="settings-label">{text.hotkeys}</span>
+              <span className="settings-value">{text.global}</span>
             </div>
             <div className="hotkey-list">
               <div className="hotkey-row">
                 <label className="settings-label" htmlFor="capture-hotkey">
-                  Capture
+                  {text.capture}
                 </label>
                 <input
                   id="capture-hotkey"
@@ -742,7 +773,7 @@ function SettingsApp() {
                   onFocus={() => setRecordingHotkeyField('capture')}
                   onBlur={() => setRecordingHotkeyField(null)}
                   onKeyDown={(event) => handleHotkeyKeyDown(event, 'capture')}
-                  placeholder="Click here, then press your shortcut"
+                  placeholder={text.hotkeyPlaceholder}
                 />
                 <button
                   className="settings-save-button"
@@ -750,14 +781,14 @@ function SettingsApp() {
                   onClick={() => handleSaveHotkey('capture')}
                   disabled={isSavingHotkey}
                 >
-                  {isSavingHotkey ? 'Saving' : 'Save'}
+                  {isSavingHotkey ? text.saving : text.save}
                 </button>
                 <span className="settings-inline-value">{getHotkeyRecorderNote('capture', hotkey)}</span>
               </div>
 
               <div className="hotkey-row">
                 <label className="settings-label" htmlFor="hide-hotkey">
-                  Hide
+                  {text.hide}
                 </label>
                 <input
                   id="hide-hotkey"
@@ -768,7 +799,7 @@ function SettingsApp() {
                   onFocus={() => setRecordingHotkeyField('hide')}
                   onBlur={() => setRecordingHotkeyField(null)}
                   onKeyDown={(event) => handleHotkeyKeyDown(event, 'hide')}
-                  placeholder="Click here, then press your shortcut"
+                  placeholder={text.hotkeyPlaceholder}
                 />
                 <button
                   className="settings-save-button"
@@ -776,14 +807,14 @@ function SettingsApp() {
                   onClick={() => handleSaveHotkey('hide')}
                   disabled={isSavingHideHotkey}
                 >
-                  {isSavingHideHotkey ? 'Saving' : 'Save'}
+                  {isSavingHideHotkey ? text.saving : text.save}
                 </button>
                 <span className="settings-inline-value">{getHotkeyRecorderNote('hide', hideHotkey)}</span>
               </div>
 
               <div className="hotkey-row">
                 <label className="settings-label" htmlFor="next-target-hotkey">
-                  Next Target
+                  {text.nextTarget}
                 </label>
                 <input
                   id="next-target-hotkey"
@@ -796,7 +827,7 @@ function SettingsApp() {
                   onFocus={() => setRecordingHotkeyField('next-target')}
                   onBlur={() => setRecordingHotkeyField(null)}
                   onKeyDown={(event) => handleHotkeyKeyDown(event, 'next-target')}
-                  placeholder="Click here, then press your shortcut"
+                  placeholder={text.hotkeyPlaceholder}
                 />
                 <button
                   className="settings-save-button"
@@ -804,19 +835,19 @@ function SettingsApp() {
                   onClick={() => handleSaveHotkey('next-target')}
                   disabled={isSavingNextTargetHotkey}
                 >
-                  {isSavingNextTargetHotkey ? 'Saving' : 'Save'}
+                  {isSavingNextTargetHotkey ? text.saving : text.save}
                 </button>
                 <span className="settings-inline-value">{getHotkeyRecorderNote('next-target', nextTargetHotkey)}</span>
               </div>
             </div>
             <span className="settings-inline-value">
-              Save keeps the entered hotkey in config. If it conflicts, the previous working hotkey stays active.
+              {text.saveHotkeyHint}
             </span>
           </div>
 
           <div className="settings-section">
             <div className="settings-label-row">
-              <span className="settings-label">Theme</span>
+              <span className="settings-label">{text.theme}</span>
               <span className="settings-value">{themeModeLabel}</span>
             </div>
 
@@ -841,7 +872,7 @@ function SettingsApp() {
             {themeMode === 'custom' ? (
               <div className="custom-theme-editor">
                 <label className="custom-theme-field">
-                  <span className="settings-label">Window Color</span>
+                  <span className="settings-label">{text.windowColor}</span>
                   <input
                     type="color"
                     value={customThemeDraft.windowColor}
@@ -855,7 +886,7 @@ function SettingsApp() {
                 </label>
 
                 <label className="custom-theme-field">
-                  <span className="settings-label">Window Opacity</span>
+                  <span className="settings-label">{text.windowOpacity}</span>
                   <input
                     className="settings-input"
                     type="number"
@@ -873,7 +904,7 @@ function SettingsApp() {
                 </label>
 
                 <label className="custom-theme-field">
-                  <span className="settings-label">Text Color</span>
+                  <span className="settings-label">{text.textColor}</span>
                   <input
                     type="color"
                     value={customThemeDraft.textColor}
@@ -887,7 +918,7 @@ function SettingsApp() {
                 </label>
 
                 <label className="custom-theme-field">
-                  <span className="settings-label">Accent Color</span>
+                  <span className="settings-label">{text.accentColor}</span>
                   <input
                     type="color"
                     value={customThemeDraft.accentColor}
@@ -907,10 +938,10 @@ function SettingsApp() {
                     onClick={handleSaveCustomTheme}
                     disabled={isSavingCustomTheme}
                   >
-                    {isSavingCustomTheme ? 'Saving Custom' : 'Save Custom'}
+                    {isSavingCustomTheme ? text.savingCustom : text.saveCustom}
                   </button>
                   <button className="settings-save-button is-secondary" type="button" onClick={handleCancelCustomTheme}>
-                    Cancel
+                    {text.cancel}
                   </button>
                 </div>
               </div>
@@ -919,7 +950,7 @@ function SettingsApp() {
 
           <div className="settings-section">
             <div className="settings-label-row">
-              <span className="settings-label">Save Shortcut</span>
+              <span className="settings-label">{text.saveShortcut}</span>
               <span className="settings-value">
                 {saveShortcutOptions.find((option) => option.value === saveShortcutMode)?.label}
               </span>

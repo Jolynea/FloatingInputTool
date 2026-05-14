@@ -11,6 +11,13 @@
   z-index: 2;
 }
 
+.lang-chinese,
+.lang-chinese button,
+.lang-chinese input,
+.lang-chinese textarea {
+  font-family: SimHei, "Microsoft YaHei", "Noto Sans SC", sans-serif;
+}
+
 .floating-window {
   width: 100%;
   height: 100%;

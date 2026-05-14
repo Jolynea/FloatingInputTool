@@ -9,6 +9,7 @@ import type {
   AppConfigChangedPayload,
   CustomTheme,
   CustomThemePreviewChangedPayload,
+  LanguageMode,
   MainWindowMode,
   MainWindowModeChangedPayload,
   MarkdownTarget,
@@ -16,6 +17,7 @@ import type {
   SaveShortcutMode,
   ThemeModeChangedPayload,
 } from './appModel'
+import { uiText } from './appModel'
 
 function sideHideDebugLog(label: string, details?: Record<string, unknown>) {
   const time = new Date().toISOString()
@@ -32,6 +34,7 @@ function App() {
     window.matchMedia('(prefers-color-scheme: dark)').matches,
   )
   const [themeMode, setThemeMode] = useState<AppConfig['themeMode']>('follow-system')
+  const [languageMode, setLanguageMode] = useState<LanguageMode>('english')
   const [customThemePreview, setCustomThemePreview] = useState<CustomTheme | null>(null)
   const [mainWindowMode, setMainWindowMode] = useState<MainWindowMode>('normal')
   const [dockSide, setDockSide] = useState<'left' | 'right' | null>(null)
@@ -84,6 +87,7 @@ function App() {
         if (!ignore) {
           setAppConfig(config)
           setThemeMode(config.themeMode)
+          setLanguageMode(config.languageMode)
         }
       } catch (error) {
         console.error('Failed to load app config', error)
@@ -103,6 +107,7 @@ function App() {
         if (!ignore) {
           setAppConfig(event.payload)
           setThemeMode(event.payload.themeMode)
+          setLanguageMode(event.payload.languageMode)
           setCustomThemePreview(null)
         }
       })
@@ -328,6 +333,7 @@ function App() {
   const customTheme = customThemePreview ?? appConfig?.customTheme ?? defaultCustomTheme
   const targets = appConfig?.targets ?? []
   const activeTargetId = appConfig?.activeTargetId ?? targets[0]?.id ?? ''
+  const text = uiText[languageMode]
 
   const hideWindow = async () => {
     clearOpenTimer()
@@ -410,7 +416,7 @@ function App() {
       await invoke('save_note', { noteText: draft })
       setDraft('')
       setCreatedAt(formatTimestamp(new Date()))
-      setCaptureFeedback('Saved to markdown.')
+      setCaptureFeedback(text.savedFeedback)
       if (isExpandedFromDock) {
         clearCloseTimer()
         window.setTimeout(() => {
@@ -573,12 +579,12 @@ function App() {
 
   return (
     <main
-      className={`app-shell theme-${resolvedTheme} ${isDocked ? `is-docked dock-${dockSide}` : ''} ${
+      className={`app-shell theme-${resolvedTheme} lang-${languageMode} ${isDocked ? `is-docked dock-${dockSide}` : ''} ${
         mainWindowMode === 'expanded-from-dock' ? 'is-expanded-from-dock' : ''
       }`}
       style={appShellStyle}
     >
-      <section className={`floating-window ${isDocked ? 'is-docked' : ''}`} role="dialog" aria-label="Fleeting note">
+      <section className={`floating-window ${isDocked ? 'is-docked' : ''}`} role="dialog" aria-label={text.dialogLabel}>
         {isDocked ? (
           <div
             className={`dock-shell dock-shell-${dockSide ?? 'left'}`}
@@ -587,7 +593,7 @@ function App() {
           >
             {shouldShowDebugHotzone ? <div className="dock-hotzone-debug" aria-hidden="true" /> : null}
             <div className="dock-handle" aria-hidden="true">
-              <span className="dock-handle-label">Fleeting Note</span>
+              <span className="dock-handle-label">{text.dockLabel}</span>
             </div>
           </div>
         ) : (
@@ -598,12 +604,12 @@ function App() {
                 data-tauri-drag-region
                 onMouseDown={handleWindowDragStart}
               >
-                <h1 data-tauri-drag-region>Fleeting Note</h1>
+                <h1 data-tauri-drag-region>{text.appTitle}</h1>
               </div>
               <button
                 className="icon-button close-button"
                 type="button"
-                aria-label="Close"
+                aria-label={text.close}
                 onClick={handleClose}
               >
                 &times;
@@ -611,7 +617,7 @@ function App() {
             </header>
 
             {targets.length > 1 ? (
-              <div className="target-switcher" aria-label="Markdown targets">
+              <div className="target-switcher" aria-label={text.markdownTargets}>
                 {targets.map((target) => (
                   <button
                     key={target.id}
@@ -630,10 +636,10 @@ function App() {
                 id="fleeting-note-editor"
                 name="fleeting-note-editor"
                 ref={textareaRef}
-                aria-label="Fleeting note content"
+                aria-label={text.editorLabel}
                 spellCheck={false}
                 value={draft}
-                placeholder="Capture your fleeting thoughts"
+                placeholder={text.placeholder}
                 onFocus={() => {
                   isEditorFocusedRef.current = true
                   cursorInsideWindowRef.current = true
@@ -672,7 +678,7 @@ function App() {
                 <button
                   className="icon-button hide-button"
                   type="button"
-                  aria-label="Hide"
+                  aria-label={text.hide}
                   onClick={handleHide}
                 >
                   <svg className="ghost-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -682,7 +688,7 @@ function App() {
                   </svg>
                 </button>
                 <button className="save-button" type="button" disabled={!canSaveNote} onClick={handleSaveNote}>
-                  <span className="save-button-label">{isSavingNote ? 'Saving' : 'Save'}</span>
+                  <span className="save-button-label">{isSavingNote ? text.saving : text.save}</span>
                   <span className="save-button-shortcut">{saveShortcutLabel}</span>
                 </button>
               </div>

@@ -149,3 +149,12 @@
 - Added a main-window focus event so hotkey summon focuses the textarea immediately.
 - Added next-target cycling that updates the active markdown target without changing the current draft.
 - Re-verified with `npm run build` and `cargo check`.
+
+### Session 19
+
+- Added persisted `languageMode` config with `english` and `chinese` values.
+- Added a tray `Language / 语言` submenu with English and 中文 check items.
+- Wired tray language changes through `app-config-changed` so main and Settings windows update without restart.
+- Added English/Chinese UI copy for the main capture window and Settings window.
+- Added a SimHei-first font stack for Chinese mode.
+- Re-verified with `npm run build` and `cargo check`.

@@ -44,5 +44,6 @@
 - Side-hide movement was previously a direct `set_size`/`set_position` jump. Native bounds interpolation gives a smoother transition without changing the React visual shell.
 - Restore-from-dock should derive its horizontal target from the active dock side and monitor work area instead of trusting stale saved `normal_bounds.x`.
 - Tauri global shortcut events expose the registered shortcut object; matching by its internal id is more reliable than comparing saved accelerator strings because display formatting can differ from user-entered config.
+- Language switching can stay lightweight for now: a persisted enum plus local UI copy tables is enough and avoids pulling in a full i18n framework.
 - Approved design spec path:
   [2026-04-21-floating-input-tool-design.md](D:/Claude/Project/FloatingInputTool/docs/superpowers/specs/2026-04-21-floating-input-tool-design.md)

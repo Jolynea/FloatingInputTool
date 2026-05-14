@@ -2,8 +2,8 @@ mod config;
 
 use config::{
     default_app_config, load_app_config, normalize_targets, sanitize_custom_theme,
-    sanitize_targets, save_app_config, AppConfig, CustomTheme, MarkdownTarget, SaveShortcutMode,
-    ThemeMode, DEFAULT_HIDE_HOTKEY, DEFAULT_HOTKEY, DEFAULT_NEXT_TARGET_HOTKEY,
+    sanitize_targets, save_app_config, AppConfig, CustomTheme, LanguageMode, MarkdownTarget,
+    SaveShortcutMode, ThemeMode, DEFAULT_HIDE_HOTKEY, DEFAULT_HOTKEY, DEFAULT_NEXT_TARGET_HOTKEY,
     DEFAULT_NOTE_TEMPLATE,
 };
 use std::sync::Mutex;
@@ -30,6 +30,8 @@ const MENU_ID_THEME_FOLLOW_SYSTEM: &str = "theme-follow-system";
 const MENU_ID_THEME_WHITE: &str = "theme-white";
 const MENU_ID_THEME_DARK: &str = "theme-dark";
 const MENU_ID_THEME_CUSTOM: &str = "theme-custom";
+const MENU_ID_LANGUAGE_ENGLISH: &str = "language-english";
+const MENU_ID_LANGUAGE_CHINESE: &str = "language-chinese";
 const MENU_ID_QUIT: &str = "quit";
 const WINDOW_LABEL_MAIN: &str = "main";
 const WINDOW_LABEL_SETTINGS: &str = "settings";
@@ -47,6 +49,16 @@ struct ThemeMenuItems {
     theme_white: CheckMenuItem<Wry>,
     theme_dark: CheckMenuItem<Wry>,
     theme_custom: CheckMenuItem<Wry>,
+}
+
+struct LanguageMenuItems {
+    english: CheckMenuItem<Wry>,
+    chinese: CheckMenuItem<Wry>,
+}
+
+struct TrayMenuItems {
+    theme: ThemeMenuItems,
+    language: LanguageMenuItems,
 }
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
@@ -84,7 +96,7 @@ struct MainWindowRuntimeState {
 
 struct AppState {
     config: Mutex<AppConfig>,
-    theme_menu_items: ThemeMenuItems,
+    tray_menu_items: TrayMenuItems,
     active_hotkeys: Mutex<ActiveHotkeys>,
     main_window_state: Mutex<MainWindowRuntimeState>,
     auto_dock_generation: Mutex<u64>,
@@ -197,7 +209,7 @@ fn set_theme_mode(
 
     config.theme_mode = theme_mode;
     save_app_config(&app, &config)?;
-    sync_theme_menu_items(&state.theme_menu_items, theme_mode)?;
+    sync_theme_menu_items(&state.tray_menu_items.theme, theme_mode)?;
 
     let next_config = config.clone();
     drop(config);
@@ -207,6 +219,30 @@ fn set_theme_mode(
         ThemeModeChangedPayload { theme_mode },
     )
     .map_err(|error| format!("failed to emit theme mode change: {error}"))?;
+    app.emit(EVENT_APP_CONFIG_CHANGED, next_config.clone())
+        .map_err(|error| format!("failed to emit app config change: {error}"))?;
+
+    Ok(next_config)
+}
+
+#[tauri::command]
+fn set_language_mode(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    language_mode: LanguageMode,
+) -> Result<AppConfig, String> {
+    let mut config = state
+        .config
+        .lock()
+        .map_err(|error| format!("failed to lock app state: {error}"))?;
+
+    config.language_mode = language_mode;
+    save_app_config(&app, &config)?;
+    sync_language_menu_items(&state.tray_menu_items.language, language_mode)?;
+
+    let next_config = config.clone();
+    drop(config);
+
     app.emit(EVENT_APP_CONFIG_CHANGED, next_config.clone())
         .map_err(|error| format!("failed to emit app config change: {error}"))?;
 
@@ -784,6 +820,22 @@ fn sync_theme_menu_items(items: &ThemeMenuItems, active_mode: ThemeMode) -> Resu
     Ok(())
 }
 
+fn sync_language_menu_items(
+    items: &LanguageMenuItems,
+    active_mode: LanguageMode,
+) -> Result<(), String> {
+    items
+        .english
+        .set_checked(active_mode == LanguageMode::English)
+        .map_err(|error| format!("failed to update tray language menu: {error}"))?;
+    items
+        .chinese
+        .set_checked(active_mode == LanguageMode::Chinese)
+        .map_err(|error| format!("failed to update tray language menu: {error}"))?;
+
+    Ok(())
+}
+
 fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<AppState>();
     if let Err(error) = restore_main_window_to_normal(app, &state) {
@@ -982,12 +1034,26 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
                 log::error!("{error}");
             }
         }
+        MENU_ID_LANGUAGE_ENGLISH => {
+            if let Err(error) =
+                set_language_mode(app.clone(), app.state::<AppState>(), LanguageMode::English)
+            {
+                log::error!("{error}");
+            }
+        }
+        MENU_ID_LANGUAGE_CHINESE => {
+            if let Err(error) =
+                set_language_mode(app.clone(), app.state::<AppState>(), LanguageMode::Chinese)
+            {
+                log::error!("{error}");
+            }
+        }
         MENU_ID_QUIT => app.exit(0),
         _ => {}
     }
 }
 
-fn create_tray(app: &AppHandle, theme_mode: ThemeMode) -> Result<ThemeMenuItems, String> {
+fn create_tray(app: &AppHandle, config: &AppConfig) -> Result<TrayMenuItems, String> {
     let show_item = MenuItem::with_id(app, MENU_ID_SHOW, "Show", true, None::<&str>)
         .map_err(|error| format!("failed to create Show menu item: {error}"))?;
     let settings_item = MenuItem::with_id(app, MENU_ID_SETTINGS, "Settings", true, None::<&str>)
@@ -997,7 +1063,7 @@ fn create_tray(app: &AppHandle, theme_mode: ThemeMode) -> Result<ThemeMenuItems,
         MENU_ID_THEME_FOLLOW_SYSTEM,
         "Follow System",
         true,
-        theme_mode == ThemeMode::FollowSystem,
+        config.theme_mode == ThemeMode::FollowSystem,
         None::<&str>,
     )
     .map_err(|error| format!("failed to create Follow System menu item: {error}"))?;
@@ -1006,7 +1072,7 @@ fn create_tray(app: &AppHandle, theme_mode: ThemeMode) -> Result<ThemeMenuItems,
         MENU_ID_THEME_WHITE,
         "Theme White",
         true,
-        theme_mode == ThemeMode::ThemeWhite,
+        config.theme_mode == ThemeMode::ThemeWhite,
         None::<&str>,
     )
     .map_err(|error| format!("failed to create Theme White menu item: {error}"))?;
@@ -1015,7 +1081,7 @@ fn create_tray(app: &AppHandle, theme_mode: ThemeMode) -> Result<ThemeMenuItems,
         MENU_ID_THEME_DARK,
         "Theme Dark",
         true,
-        theme_mode == ThemeMode::ThemeDark,
+        config.theme_mode == ThemeMode::ThemeDark,
         None::<&str>,
     )
     .map_err(|error| format!("failed to create Theme Dark menu item: {error}"))?;
@@ -1024,10 +1090,28 @@ fn create_tray(app: &AppHandle, theme_mode: ThemeMode) -> Result<ThemeMenuItems,
         MENU_ID_THEME_CUSTOM,
         "Custom",
         true,
-        theme_mode == ThemeMode::Custom,
+        config.theme_mode == ThemeMode::Custom,
         None::<&str>,
     )
     .map_err(|error| format!("failed to create Custom theme menu item: {error}"))?;
+    let language_english_item = CheckMenuItem::with_id(
+        app,
+        MENU_ID_LANGUAGE_ENGLISH,
+        "English",
+        true,
+        config.language_mode == LanguageMode::English,
+        None::<&str>,
+    )
+    .map_err(|error| format!("failed to create English language menu item: {error}"))?;
+    let language_chinese_item = CheckMenuItem::with_id(
+        app,
+        MENU_ID_LANGUAGE_CHINESE,
+        "中文",
+        true,
+        config.language_mode == LanguageMode::Chinese,
+        None::<&str>,
+    )
+    .map_err(|error| format!("failed to create Chinese language menu item: {error}"))?;
     let separator = PredefinedMenuItem::separator(app)
         .map_err(|error| format!("failed to create separator menu item: {error}"))?;
     let quit_item = MenuItem::with_id(app, MENU_ID_QUIT, "Quit", true, None::<&str>)
@@ -1046,12 +1130,21 @@ fn create_tray(app: &AppHandle, theme_mode: ThemeMode) -> Result<ThemeMenuItems,
     )
     .map_err(|error| format!("failed to create tray theme submenu: {error}"))?;
 
+    let language_submenu = Submenu::with_items(
+        app,
+        "Language / 语言",
+        true,
+        &[&language_english_item, &language_chinese_item],
+    )
+    .map_err(|error| format!("failed to create tray language submenu: {error}"))?;
+
     let tray_menu = Menu::with_items(
         app,
         &[
             &show_item,
             &settings_item,
             &theme_submenu,
+            &language_submenu,
             &separator,
             &quit_item,
         ],
@@ -1081,11 +1174,17 @@ fn create_tray(app: &AppHandle, theme_mode: ThemeMode) -> Result<ThemeMenuItems,
         .build(app)
         .map_err(|error| format!("failed to create tray icon: {error}"))?;
 
-    Ok(ThemeMenuItems {
-        follow_system: follow_system_item,
-        theme_white: theme_white_item,
-        theme_dark: theme_dark_item,
-        theme_custom: theme_custom_item,
+    Ok(TrayMenuItems {
+        theme: ThemeMenuItems {
+            follow_system: follow_system_item,
+            theme_white: theme_white_item,
+            theme_dark: theme_dark_item,
+            theme_custom: theme_custom_item,
+        },
+        language: LanguageMenuItems {
+            english: language_english_item,
+            chinese: language_chinese_item,
+        },
     })
 }
 
@@ -1820,11 +1919,11 @@ pub fn run() {
             };
 
             let active_hotkeys = register_startup_hotkeys(app.handle(), &config);
-            let theme_menu_items = create_tray(app.handle(), config.theme_mode)?;
+            let tray_menu_items = create_tray(app.handle(), &config)?;
 
             app.manage(AppState {
                 config: Mutex::new(config),
-                theme_menu_items,
+                tray_menu_items,
                 active_hotkeys: Mutex::new(active_hotkeys),
                 main_window_state: Mutex::new(MainWindowRuntimeState::default()),
                 auto_dock_generation: Mutex::new(0),
@@ -1841,6 +1940,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_app_config,
             set_theme_mode,
+            set_language_mode,
             set_target_file_path,
             set_active_target_id,
             set_markdown_targets,

@@ -26,6 +26,7 @@ pub const DEFAULT_CUSTOM_ACCENT_COLOR: &str = "#3EB4BF";
 pub const DEFAULT_TARGET_ID: &str = "default";
 pub const DEFAULT_TARGET_NICKNAME: &str = "Fleeting";
 pub const DEFAULT_NOTE_TEMPLATE: &str = "> [!fleeting]+ {{timestamp}}\n>\n{{text.callout}}";
+pub const DEFAULT_LANGUAGE_MODE: LanguageMode = LanguageMode::English;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -43,6 +44,14 @@ pub enum SaveShortcutMode {
     #[default]
     CtrlEnterSave,
     EnterSave,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum LanguageMode {
+    #[default]
+    English,
+    Chinese,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,6 +140,8 @@ pub struct AppConfig {
     pub active_target_id: String,
     #[serde(default = "default_note_template")]
     pub note_template: String,
+    #[serde(default = "default_language_mode")]
+    pub language_mode: LanguageMode,
     pub theme_mode: ThemeMode,
 }
 
@@ -293,6 +304,7 @@ pub fn default_app_config<R: Runtime>(app: &AppHandle<R>) -> AppConfig {
         }],
         active_target_id: DEFAULT_TARGET_ID.into(),
         note_template: DEFAULT_NOTE_TEMPLATE.into(),
+        language_mode: DEFAULT_LANGUAGE_MODE,
         theme_mode: ThemeMode::default(),
     }
 }
@@ -374,6 +386,10 @@ fn default_target_nickname() -> String {
 
 fn default_note_template() -> String {
     DEFAULT_NOTE_TEMPLATE.into()
+}
+
+fn default_language_mode() -> LanguageMode {
+    DEFAULT_LANGUAGE_MODE
 }
 
 fn default_custom_window_color() -> String {
@@ -519,6 +535,13 @@ Allowed values:
 - `theme-white`: use the built-in white theme.
 - `theme-dark`: use the built-in dark theme.
 - `custom`: use `customTheme`.
+
+## languageMode
+Controls the application UI language.
+
+Allowed values:
+- `english`: use English UI labels.
+- `chinese`: use Chinese UI labels and the SimHei font stack in the web windows.
 
 ## customTheme.windowColor
 Controls the main capture window surface color when `themeMode` is `custom`.
