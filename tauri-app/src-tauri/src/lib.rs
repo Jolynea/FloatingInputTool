@@ -858,10 +858,12 @@ fn open_settings<R: Runtime>(app: &AppHandle<R>) {
 
 fn toggle_main_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(settings_window) = app.get_webview_window(WINDOW_LABEL_SETTINGS) {
-        let _ = settings_window.show();
-        let _ = settings_window.unminimize();
-        let _ = settings_window.set_focus();
-        return;
+        if settings_window.is_visible().unwrap_or(false) {
+            let _ = settings_window.show();
+            let _ = settings_window.unminimize();
+            let _ = settings_window.set_focus();
+            return;
+        }
     }
 
     if let Some(window) = app.get_webview_window(WINDOW_LABEL_MAIN) {

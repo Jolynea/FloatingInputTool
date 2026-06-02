@@ -390,8 +390,6 @@ function SettingsApp() {
       if (response.warning) {
         setSettingsFeedback(response.warning)
         setSettingsFeedbackTone('error')
-      } else {
-        setSettingsFeedback(`${hotkeyLabelForField(field)} ${text.hotkeyUpdated}`)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -433,18 +431,6 @@ function SettingsApp() {
     }
 
     return 'set_hotkey'
-  }
-
-  const hotkeyLabelForField = (field: HotkeyField) => {
-    if (field === 'hide') {
-      return text.hide
-    }
-
-    if (field === 'next-target') {
-      return text.nextTarget
-    }
-
-    return text.capture
   }
 
   const setHotkeySavingState = (field: HotkeyField, isSaving: boolean) => {
